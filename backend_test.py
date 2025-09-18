@@ -340,12 +340,13 @@ class TravelAppTester:
     async def test_ai_chat(self):
         """Test AI travel assistant chat"""
         try:
-            chat_data = {
+            # Use query parameters instead of JSON body
+            params = {
                 "message": "What are the best places to visit in San Francisco for a first-time visitor?",
                 "user_context": "Planning a 3-day trip to San Francisco"
             }
             
-            async with self.session.post(f"{BACKEND_URL}/chat", json=chat_data) as response:
+            async with self.session.post(f"{BACKEND_URL}/chat", params=params) as response:
                 if response.status == 200:
                     data = await response.json()
                     if "response" in data and len(data["response"]) > 50:  # Expect substantial response
