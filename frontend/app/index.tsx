@@ -327,4 +327,21 @@ const styles = StyleSheet.create({
   comingSoonContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
   comingSoonText: { fontSize: 24, fontWeight: 'bold', color: '#333', marginTop: 16 },
   comingSoonSubtext: { fontSize: 14, color: '#666', textAlign: 'center', marginTop: 8 },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'white',
+    borderWidth: 1,
+    borderColor: '#FF6B6B',
+    margin: 20,
+    padding: 16,
+    borderRadius: 12,
+    gap: 8,
+  },
+  logoutButtonText: {
+    color: '#FF6B6B',
+    fontSize: 16,
+    fontWeight: '600',
+  },
 });
