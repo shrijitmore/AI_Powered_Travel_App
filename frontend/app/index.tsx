@@ -64,49 +64,49 @@ export default function App() {
     }
   };
 
-  const planRoute = async () => {
-    if (!location) { Alert.alert('Location Required', 'Please enable location services to plan routes.'); return; }
-    try {
-      const routeRequest = {
-        start: { latitude: location.coords.latitude, longitude: location.coords.longitude, name: 'Current Location' },
-        end: { latitude: location.coords.latitude + 0.1, longitude: location.coords.longitude + 0.1, name: 'Destination' },
-        preferences: { type: 'scenic' },
-      };
-      const response = await fetch(`${API_BASE}/api/routes/plan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(routeRequest) });
-      if (response.ok) {
-        const routeData = await response.json();
-        Alert.alert('Route Planned!', `Found ${routeData.routes.length} route options. ${String(routeData.explanation).substring(0, 100)}...`);
-      }
-    } catch (error) { console.error('Error planning route:', error); Alert.alert('Error', 'Failed to plan route. Please try again.'); }
-  };
-
   const completeRoute = async () => {
-    if (!currentUser?.id) return;
+    if (!appUser?.id) return;
+    
     try {
+      setLoading(true);
       const sampleRoute = {
-        user_id: currentUser.id,
+        user_id: appUser.id,
         start: { latitude: location?.coords.latitude || 0, longitude: location?.coords.longitude || 0, name: 'Start Location' },
         end: { latitude: (location?.coords.latitude || 0) + 0.1, longitude: (location?.coords.longitude || 0) + 0.1, name: 'End Location' },
         route_type: 'scenic', waypoints: [],
       };
-      const routeResponse = await fetch(`${API_BASE}/api/routes`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sampleRoute) });
+      
+      const routeResponse = await fetch(`${API_BASE}/api/routes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sampleRoute)
+      });
+      
       if (routeResponse.ok) {
         const createdRoute = await routeResponse.json();
-        const completeResponse = await fetch(`${API_BASE}/api/routes/${createdRoute.id}/complete?user_id=${currentUser.id}`, { method: 'PATCH' });
+        const completeResponse = await fetch(`${API_BASE}/api/routes/${createdRoute.id}/complete?user_id=${appUser.id}`, { method: 'PATCH' });
+        
         if (completeResponse.ok) {
           const result = await completeResponse.json();
-          const updatedUser = { ...currentUser, total_points: currentUser.total_points + result.points_awarded + (result.achievement?.awarded_points || 0), routes_completed: currentUser.routes_completed + 1, badges: Array.from(new Set([...(currentUser.badges || []), ...((result.achievement?.unlocked || []) as string[])])) };
-          setCurrentUser(updatedUser); await AsyncStorage.setItem('travelUser', JSON.stringify(updatedUser));
+          await refreshAppUser(); // Refresh user data
           Alert.alert('🎉 Route Completed!', `${result.motivation || 'Great job!'} You earned ${result.points_awarded} points!`);
         }
       }
-    } catch (error) { console.error('Error completing route:', error); Alert.alert('Error', 'Failed to complete route. Please try again.'); }
+    } catch (error) {
+      console.error('Error completing route:', error);
+      Alert.alert('Error', 'Failed to complete route. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  if (loading) {
+  if (authLoading) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#007AFF" /><Text style={styles.loadingText}>Loading Travel Quest...</Text></View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={styles.loadingText}>Loading Travel Quest...</Text>
+        </View>
       </SafeAreaView>
     );
   }
