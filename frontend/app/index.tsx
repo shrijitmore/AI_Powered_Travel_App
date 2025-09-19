@@ -198,25 +198,45 @@ export default function App() {
   const renderProfileView = () => (
     <ScrollView style={styles.content}>
       <View style={styles.profileHeader}>
-        <View style={styles.avatarContainer}><Ionicons name="person" size={40} color="white" /></View>
-        <Text style={styles.profileName}>{currentUser?.name}</Text>
-        <Text style={styles.profileEmail}>{currentUser?.email}</Text>
+        <View style={styles.avatarContainer}>
+          <Ionicons name="person" size={40} color="white" />
+        </View>
+        <Text style={styles.profileName}>{appUser?.name}</Text>
+        <Text style={styles.profileEmail}>{appUser?.email}</Text>
       </View>
       <View style={styles.profileStats}>
-        <View style={styles.profileStatItem}><Text style={styles.profileStatNumber}>{currentUser?.total_points || 0}</Text><Text style={styles.profileStatLabel}>Total Points</Text></View>
-        <View style={styles.profileStatItem}><Text style={styles.profileStatNumber}>{currentUser?.routes_completed || 0}</Text><Text style={styles.profileStatLabel}>Routes</Text></View>
-        <View style={styles.profileStatItem}><Text style={styles.profileStatNumber}>Level {currentUser?.level || 1}</Text><Text style={styles.profileStatLabel}>Explorer Level</Text></View>
+        <View style={styles.profileStatItem}>
+          <Text style={styles.profileStatNumber}>{appUser?.total_points || 0}</Text>
+          <Text style={styles.profileStatLabel}>Total Points</Text>
+        </View>
+        <View style={styles.profileStatItem}>
+          <Text style={styles.profileStatNumber}>{appUser?.routes_completed || 0}</Text>
+          <Text style={styles.profileStatLabel}>Routes</Text>
+        </View>
+        <View style={styles.profileStatItem}>
+          <Text style={styles.profileStatNumber}>Level {appUser?.level || 1}</Text>
+          <Text style={styles.profileStatLabel}>Explorer Level</Text>
+        </View>
       </View>
       <View style={styles.badgesSection}>
         <Text style={styles.sectionTitle}>Your Badges</Text>
-        {currentUser?.badges && currentUser.badges.length > 0 ? (
-          currentUser.badges.map((badge, index) => (
-            <View key={index} style={styles.badgeItem}><Ionicons name="ribbon" size={20} color="#FFD700" /><Text style={styles.badgeText}>{badge}</Text></View>
+        {appUser?.badges && appUser.badges.length > 0 ? (
+          appUser.badges.map((badge, index) => (
+            <View key={index} style={styles.badgeItem}>
+              <Ionicons name="ribbon" size={20} color="#FFD700" />
+              <Text style={styles.badgeText}>{badge}</Text>
+            </View>
           ))
         ) : (
           <Text style={styles.noBadgesText}>Complete routes to earn badges!</Text>
         )}
       </View>
+      
+      {/* Logout Button */}
+      <TouchableOpacity style={styles.logoutButton} onPress={logout}>
+        <Ionicons name="log-out-outline" size={20} color="#FF6B6B" />
+        <Text style={styles.logoutButtonText}>Logout</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 
