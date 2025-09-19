@@ -931,9 +931,11 @@ class TravelAppTester:
                 async with self.session.get(f"{BACKEND_URL}/motivation", params=params) as response:
                     if response.status == 200:
                         data = await response.json()
-                        if "message" in data and len(data["message"]) > 0:
+                        # Check for either 'message' field (random selection) or 'message_text' field (document)
+                        message = data.get("message") or data.get("message_text", "")
+                        if message and len(message) > 0:
                             self.log_test(f"Motivation Message - {trigger}", True, 
-                                        f"Retrieved motivation message: '{data['message'][:50]}...'")
+                                        f"Retrieved motivation message: '{message[:50]}...'")
                         else:
                             self.log_test(f"Motivation Message - {trigger}", False, 
                                         "Empty or missing message", data)
