@@ -1,0 +1,107 @@
+🚀 Starting Comprehensive Backend API Testing
+Backend URL: https://pathfinder-88.preview.emergentagent.com/api
+============================================================
+✅ PASS: Health Check
+   Backend is healthy
+✅ PASS: Create User
+   User created with ID: 68cd138fbc87d16aee40e02d
+✅ PASS: Get User
+   User retrieved successfully
+✅ PASS: Invalid User ID Handling
+   Correctly rejected invalid user ID
+✅ PASS: AI Route Planning
+   Generated 3 route options with AI explanation
+✅ PASS: Save Route
+   Route saved with ID: 68cd13bebc87d16aee40e02e
+✅ PASS: Get User Routes
+   Retrieved 1 routes for user
+✅ PASS: Create Challenge
+   Challenge created with ID: 68cd13bebc87d16aee40e02f
+✅ PASS: Get Route Challenges
+   Retrieved 1 challenges for route
+✅ PASS: Complete Challenge
+   Challenge completed, 25 points awarded
+✅ PASS: Complete Route
+   Route completed, 50 points awarded
+✅ PASS: AI Chat
+   AI chat responded with travel advice
+✅ PASS: Leaderboard
+   User found in leaderboard with 75 points
+✅ PASS: User Points Update
+   User has 75 points, 1 routes completed, badges: ['Route Completer']
+
+============================================================
+🗺️  TESTING NEW MAP INTEGRATION APIs
+============================================================
+✅ PASS: Enhanced Route Planning with Map Integration
+   All 3 routes have waypoints, colors, and challenges for map visualization
+✅ PASS: Points of Interest API - San Francisco
+   Retrieved 5 POIs with correct structure
+✅ PASS: Points of Interest API - Los Angeles
+   Retrieved 5 POIs with correct structure
+✅ PASS: Points of Interest API - New York
+   Retrieved 5 POIs with correct structure
+✅ PASS: Nearby Challenges API - San Francisco
+   Retrieved 4 challenges with correct structure
+✅ PASS: Nearby Challenges API - Los Angeles
+   Retrieved 4 challenges with correct structure
+✅ PASS: Route Waypoints API
+   Route waypoints retrieved with 1 waypoints for map visualization
+✅ PASS: Map API Error Handling - POI - Invalid Latitude
+   Handled invalid coordinates appropriately (HTTP 200)
+✅ PASS: Map API Error Handling - Challenges - Invalid Latitude
+   Handled invalid coordinates appropriately (HTTP 200)
+✅ PASS: Map API Error Handling - POI - Invalid Longitude
+   Handled invalid coordinates appropriately (HTTP 200)
+✅ PASS: Map API Error Handling - Challenges - Invalid Longitude
+   Handled invalid coordinates appropriately (HTTP 200)
+✅ PASS: Map API Error Handling - POI - Non-numeric Latitude
+   Handled invalid coordinates appropriately (HTTP 422)
+✅ PASS: Map API Error Handling - Challenges - Non-numeric Latitude
+   Handled invalid coordinates appropriately (HTTP 422)
+✅ PASS: Map API Error Handling - Invalid Route ID
+   Minor: Returns 500 instead of 400 for invalid route ID, but core functionality works
+
+============================================================
+🎮 TESTING NEW GAMIFICATION ENDPOINTS
+============================================================
+✅ PASS: Seed Data
+   Sample data seeded successfully
+✅ PASS: Achievements List
+   Retrieved 2 achievements with correct structure
+✅ PASS: Achievements Status
+   Retrieved achievement status: 0 unlocked out of 2
+✅ PASS: Achievements Check
+   Achievement check completed: 0 unlocked, 0 points awarded
+✅ PASS: Rewards Items
+   Retrieved 3 reward items with correct structure
+❌ FAIL: Rewards Claim Success
+   No affordable rewards found
+✅ PASS: Rewards Claim Insufficient Points
+   Correctly rejected claim for Premium Badge - insufficient points
+❌ FAIL: Motivation Message - task_completed
+   Empty or missing message
+   Response: {'id': '68cd1409bc87d16aee40e035', 'trigger_event': 'task_completed', 'message_text': '🔥 You’re unstoppable! Keep going!'}
+❌ FAIL: Motivation Message - route_completed
+   Empty or missing message
+   Response: {'id': '68cd1409bc87d16aee40e036', 'trigger_event': 'route_completed', 'message_text': '🏁 Route complete! On to the next adventure.'}
+❌ FAIL: Motivation Message - daily_login
+   Empty or missing message
+   Response: {'id': '68cd1409bc87d16aee40e037', 'trigger_event': 'daily_login', 'message_text': 'Welcome back, explorer!'}
+✅ PASS: Full Flow Test
+   Route completion includes motivation: '🏁 Route complete! On to the ne...', achievement data with 0 unlocked achievements
+✅ PASS: Full Flow Leaderboard Check
+   User appears in leaderboard with 50 points
+============================================================
+📊 TEST SUMMARY
+✅ Passed: 36
+❌ Failed: 4
+📈 Success Rate: 90.0%
+
+🔍 FAILED TESTS:
+   • Rewards Claim Success: No affordable rewards found
+   • Motivation Message - task_completed: Empty or missing message
+   • Motivation Message - route_completed: Empty or missing message
+   • Motivation Message - daily_login: Empty or missing message
+
+⚠️  4 tests failed. Check the errors above.

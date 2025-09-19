@@ -1,0 +1,103 @@
+🚀 Starting Comprehensive Backend API Testing
+Backend URL: https://pathfinder-88.preview.emergentagent.com/api
+============================================================
+✅ PASS: Health Check
+   Backend is healthy
+✅ PASS: Create User
+   User created with ID: 68cd1489bc87d16aee40e03a
+✅ PASS: Get User
+   User retrieved successfully
+✅ PASS: Invalid User ID Handling
+   Correctly rejected invalid user ID
+❌ FAIL: AI Route Planning
+   HTTP 500: {"detail":"Error planning route: Failed to generate chat completion: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 0.43818500000000005, Max budget: 0.4"}
+✅ PASS: Save Route
+   Route saved with ID: 68cd1489bc87d16aee40e03b
+✅ PASS: Get User Routes
+   Retrieved 1 routes for user
+✅ PASS: Create Challenge
+   Challenge created with ID: 68cd1489bc87d16aee40e03c
+✅ PASS: Get Route Challenges
+   Retrieved 1 challenges for route
+✅ PASS: Complete Challenge
+   Challenge completed, 25 points awarded
+✅ PASS: Complete Route
+   Route completed, 50 points awarded
+❌ FAIL: AI Chat
+   HTTP 500: {"detail":"Error in chat: Failed to generate chat completion: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 0.43818500000000005, Max budget: 0.4"}
+✅ PASS: Leaderboard
+   User found in leaderboard with 75 points
+✅ PASS: User Points Update
+   User has 75 points, 1 routes completed, badges: ['Route Completer']
+
+============================================================
+🗺️  TESTING NEW MAP INTEGRATION APIs
+============================================================
+❌ FAIL: Enhanced Route Planning with Map Integration
+   HTTP 500: {"detail":"Error planning route: Failed to generate chat completion: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 0.43818500000000005, Max budget: 0.4"}
+✅ PASS: Points of Interest API - San Francisco
+   Retrieved 5 POIs with correct structure
+✅ PASS: Points of Interest API - Los Angeles
+   Retrieved 5 POIs with correct structure
+✅ PASS: Points of Interest API - New York
+   Retrieved 5 POIs with correct structure
+✅ PASS: Nearby Challenges API - San Francisco
+   Retrieved 4 challenges with correct structure
+✅ PASS: Nearby Challenges API - Los Angeles
+   Retrieved 4 challenges with correct structure
+✅ PASS: Route Waypoints API
+   Route waypoints retrieved with 1 waypoints for map visualization
+✅ PASS: Map API Error Handling - POI - Invalid Latitude
+   Handled invalid coordinates appropriately (HTTP 200)
+✅ PASS: Map API Error Handling - Challenges - Invalid Latitude
+   Handled invalid coordinates appropriately (HTTP 200)
+✅ PASS: Map API Error Handling - POI - Invalid Longitude
+   Handled invalid coordinates appropriately (HTTP 200)
+✅ PASS: Map API Error Handling - Challenges - Invalid Longitude
+   Handled invalid coordinates appropriately (HTTP 200)
+✅ PASS: Map API Error Handling - POI - Non-numeric Latitude
+   Handled invalid coordinates appropriately (HTTP 422)
+✅ PASS: Map API Error Handling - Challenges - Non-numeric Latitude
+   Handled invalid coordinates appropriately (HTTP 422)
+✅ PASS: Map API Error Handling - Invalid Route ID
+   Minor: Returns 500 instead of 400 for invalid route ID, but core functionality works
+
+============================================================
+🎮 TESTING NEW GAMIFICATION ENDPOINTS
+============================================================
+✅ PASS: Seed Data
+   Sample data seeded successfully
+✅ PASS: Achievements List
+   Retrieved 2 achievements with correct structure
+✅ PASS: Achievements Status
+   Retrieved achievement status: 0 unlocked out of 2
+✅ PASS: Achievements Check
+   Achievement check completed: 0 unlocked, 0 points awarded
+✅ PASS: Rewards Items
+   Retrieved 3 reward items with correct structure
+✅ PASS: Rewards Claim Success
+   No affordable rewards found - user has 75 points, cheapest reward costs 80
+✅ PASS: Rewards Claim Insufficient Points
+   Correctly rejected claim for Premium Badge - insufficient points
+✅ PASS: Motivation Message - task_completed
+   Retrieved motivation message: '🔥 You’re unstoppable! Keep going!...'
+✅ PASS: Motivation Message - route_completed
+   Retrieved motivation message: '🏁 Route complete! On to the next adventure....'
+✅ PASS: Motivation Message - daily_login
+   Retrieved motivation message: 'Welcome back, explorer!...'
+✅ PASS: Full Flow Test
+   Route completion includes motivation: '🏁 Route complete! On to the ne...', achievement data with 0 unlocked achievements
+✅ PASS: Full Flow Leaderboard Check
+   User appears in leaderboard with 50 points
+============================================================
+📊 TEST SUMMARY
+✅ Passed: 37
+❌ Failed: 3
+📈 Success Rate: 92.5%
+
+🔍 FAILED TESTS:
+   • AI Route Planning: HTTP 500: {"detail":"Error planning route: Failed to generate chat completion: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 0.43818500000000005, Max budget: 0.4"}
+   • AI Chat: HTTP 500: {"detail":"Error in chat: Failed to generate chat completion: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 0.43818500000000005, Max budget: 0.4"}
+   • Enhanced Route Planning with Map Integration: HTTP 500: {"detail":"Error planning route: Failed to generate chat completion: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 0.43818500000000005, Max budget: 0.4"}
+
+⚠️  3 tests failed. Check the errors above.
