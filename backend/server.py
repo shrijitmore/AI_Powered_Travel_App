@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from dotenv import load_dotenv
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 import uuid
+import random
 
 load_dotenv()
 
@@ -96,11 +97,32 @@ class User(BaseModel):
     level: int = 1
     badges: List[str] = []
     routes_completed: int = 0
+    achievements: List[str] = []  # achievement titles unlocked
+    rewards_owned: List[str] = []  # reward item ids
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class AIRouteResponse(BaseModel):
     routes: List[Dict[str, Any]]
     explanation: str
+
+class Achievement(BaseModel):
+    id: Optional[str] = None
+    title: str
+    condition_type: str  # 'points' | 'routes_completed'
+    condition_value: int
+    reward_points: int = 0
+    badge_icon: Optional[str] = None  # base64 icon (optional)
+
+class RewardItem(BaseModel):
+    id: Optional[str] = None
+    item_name: str
+    cost: int
+    category: str  # 'Badge' | 'Boost' | 'Cosmetic'
+
+class MotivationMessage(BaseModel):
+    id: Optional[str] = None
+    trigger_event: str  # 'task_completed' | 'route_completed' | 'daily_login'
+    message_text: str
 
 # Initialize AI Chat
 def get_ai_chat():
@@ -109,6 +131,49 @@ def get_ai_chat():
         session_id=str(uuid.uuid4()),
         system_message="You are a helpful travel assistant specialized in route planning and travel recommendations. Provide practical advice about routes, points of interest, and travel optimization."
     ).with_model("gemini", "gemini-2.5-pro")
+
+# Utility: Achievement checking
+async def check_and_award_achievements(user_id: str) -> Dict[str, Any]:
+    if not ObjectId.is_valid(user_id):
+        return {"unlocked": [], "awarded_points": 0}
+
+    user = await db.users.find_one({"_id": ObjectId(user_id)})
+    if not user:
+        return {"unlocked": [], "awarded_points": 0}
+
+    achievements = await db.achievements.find().to_list(100)
+    unlocked: List[str] = []
+    awarded_points = 0
+
+    for ach in achievements:
+        title = ach.get("title")
+        if title in (user.get("achievements") or []):
+            continue
+        condition_type = ach.get("condition_type")
+        condition_value = ach.get("condition_value", 0)
+
+        meets = False
+        if condition_type == "points":
+            meets = (user.get("total_points", 0) >= condition_value)
+        elif condition_type == "routes_completed":
+            meets = (user.get("routes_completed", 0) >= condition_value)
+
+        if meets:
+            # award
+            unlocked.append(title)
+            awarded_points += int(ach.get("reward_points", 0))
+
+    if unlocked:
+        update = {
+            "$inc": {"total_points": awarded_points} if awarded_points else {},
+            "$addToSet": {"badges": {"$each": unlocked}, "achievements": {"$each": unlocked}},
+        }
+        # Clean empty $inc if 0
+        if not awarded_points:
+            update.pop("$inc")
+        await db.users.update_one({"_id": ObjectId(user_id)}, update)
+
+    return {"unlocked": unlocked, "awarded_points": awarded_points}
 
 # API Routes
 
@@ -321,6 +386,15 @@ async def complete_route(route_id: str, user_id: str):
                     "$addToSet": {"badges": "Route Completer"}
                 }
             )
+
+            # Achievement check and motivation message
+            ach_result = await check_and_award_achievements(user_id)
+
+            # Motivation message
+            msg_doc = await db.motivation_messages.find_one({"trigger_event": "route_completed"})
+            motivation = msg_doc.get("message_text") if msg_doc else "Great job! Keep going!"
+            
+            return {"message": "Route completed successfully", "points_awarded": 50, "achievement": ach_result, "motivation": motivation}
         
         return {"message": "Route completed successfully", "points_awarded": 50}
         
@@ -369,6 +443,12 @@ async def complete_challenge(challenge_id: str, user_id: str):
                 {"_id": ObjectId(user_id)},
                 {"$inc": {"total_points": points}}
             )
+
+            ach_result = await check_and_award_achievements(user_id)
+            msg_doc = await db.motivation_messages.find_one({"trigger_event": "task_completed"})
+            motivation = msg_doc.get("message_text") if msg_doc else "🔥 You’re unstoppable! Keep going!"
+            
+            return {"message": "Challenge completed successfully", "points_awarded": points, "achievement": ach_result, "motivation": motivation}
         
         return {"message": "Challenge completed successfully", "points_awarded": challenge.get("points", 10)}
         
@@ -489,6 +569,137 @@ async def get_route_waypoints(route_id: str):
         raise HTTPException(status_code=400, detail="Invalid route ID format")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching route waypoints: {str(e)}")
+
+# Achievements APIs
+@app.get("/api/achievements")
+async def list_achievements():
+    items = await db.achievements.find().to_list(100)
+    return serialize_doc(items)
+
+@app.post("/api/achievements")
+async def create_achievement(achievement: Achievement):
+    doc = achievement.model_dump(exclude={"id"})
+    result = await db.achievements.insert_one(doc)
+    doc["_id"] = result.inserted_id
+    return serialize_doc(doc)
+
+@app.get("/api/achievements/status")
+async def achievements_status(user_id: str):
+    if not ObjectId.is_valid(user_id):
+        raise HTTPException(status_code=400, detail="Invalid user ID format")
+    user = await db.users.find_one({"_id": ObjectId(user_id)})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    achievements = await db.achievements.find().to_list(100)
+    resp = []
+    for ach in achievements:
+        title = ach.get("title")
+        unlocked = title in (user.get("achievements") or [])
+        item = serialize_doc(ach)
+        item["unlocked"] = unlocked
+        resp.append(item)
+    return resp
+
+@app.post("/api/achievements/check")
+async def achievements_check(user_id: str):
+    result = await check_and_award_achievements(user_id)
+    return result
+
+# Rewards Store APIs
+@app.get("/api/rewards/items")
+async def list_reward_items():
+    items = await db.rewards.find().to_list(200)
+    return serialize_doc(items)
+
+@app.post("/api/rewards/items")
+async def create_reward_item(item: RewardItem):
+    doc = item.model_dump(exclude={"id"})
+    result = await db.rewards.insert_one(doc)
+    doc["_id"] = result.inserted_id
+    return serialize_doc(doc)
+
+@app.get("/api/rewards/user/{user_id}/inventory")
+async def user_inventory(user_id: str):
+    if not ObjectId.is_valid(user_id):
+        raise HTTPException(status_code=400, detail="Invalid user ID format")
+    user = await db.users.find_one({"_id": ObjectId(user_id)})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    owned = user.get("rewards_owned", [])
+    items = await db.rewards.find({"_id": {"$in": [ObjectId(x) for x in owned if ObjectId.is_valid(x)]}}).to_list(200)
+    return serialize_doc(items)
+
+class ClaimRequest(BaseModel):
+    user_id: str
+    item_id: str
+
+@app.post("/api/rewards/claim")
+async def claim_reward(payload: ClaimRequest):
+    user_id = payload.user_id
+    item_id = payload.item_id
+    if not ObjectId.is_valid(user_id) or not ObjectId.is_valid(item_id):
+        raise HTTPException(status_code=400, detail="Invalid ID format")
+
+    user = await db.users.find_one({"_id": ObjectId(user_id)})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    item = await db.rewards.find_one({"_id": ObjectId(item_id)})
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    cost = int(item.get("cost", 0))
+    if user.get("total_points", 0) < cost:
+        raise HTTPException(status_code=400, detail="Insufficient points")
+
+    # Deduct points and add to inventory
+    await db.users.update_one(
+        {"_id": ObjectId(user_id)},
+        {"$inc": {"total_points": -cost}, "$addToSet": {"rewards_owned": str(item.get("_id"))}}
+    )
+
+    updated_user = await db.users.find_one({"_id": ObjectId(user_id)})
+    return {"message": "Reward claimed", "user": serialize_doc(updated_user), "item": serialize_doc(item)}
+
+# Motivation Messages APIs
+@app.get("/api/motivation")
+async def get_motivation(trigger: str = "task_completed"):
+    msgs = await db.motivation_messages.find({"trigger_event": trigger}).to_list(100)
+    if not msgs:
+        # defaults
+        defaults = {
+            "task_completed": ["🔥 You’re unstoppable! Keep going!", "Nice! Another one down."],
+            "route_completed": ["Great job finishing the route!", "🏁 Route complete! On to the next adventure."],
+            "daily_login": ["Welcome back, explorer!", "New day, new quests!"]
+        }
+        sel = random.choice(defaults.get(trigger, ["Keep going!"]))
+        return {"message": sel}
+    pick = random.choice(msgs)
+    return serialize_doc(pick)
+
+# Seeder (Optional): create sample achievements/rewards/motivations
+@app.post("/api/seed")
+async def seed_samples():
+    # Achievements
+    if await db.achievements.count_documents({}) == 0:
+        await db.achievements.insert_many([
+            {"title": "Explorer Badge", "condition_type": "points", "condition_value": 100, "reward_points": 50},
+            {"title": "Trailblazer Badge", "condition_type": "routes_completed", "condition_value": 5, "reward_points": 75},
+        ])
+    # Rewards
+    if await db.rewards.count_documents({}) == 0:
+        await db.rewards.insert_many([
+            {"item_name": "Golden Compass", "cost": 120, "category": "Badge"},
+            {"item_name": "Speed Boost", "cost": 80, "category": "Boost"},
+            {"item_name": "Premium Badge", "cost": 150, "category": "Badge"},
+        ])
+    # Motivation messages
+    if await db.motivation_messages.count_documents({}) == 0:
+        await db.motivation_messages.insert_many([
+            {"trigger_event": "task_completed", "message_text": "🔥 You’re unstoppable! Keep going!"},
+            {"trigger_event": "route_completed", "message_text": "🏁 Route complete! On to the next adventure."},
+            {"trigger_event": "daily_login", "message_text": "Welcome back, explorer!"},
+        ])
+    return {"message": "Seeded sample data"}
 
 if __name__ == "__main__":
     import uvicorn

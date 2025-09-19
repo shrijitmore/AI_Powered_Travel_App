@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import MapScreen from './map';
+import { useRouter } from 'expo-router';
 
 // Types
 interface User {
@@ -49,6 +50,7 @@ export default function App() {
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
 
   const API_BASE = Constants.expoConfig?.extra?.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:8001';
+  const router = useRouter();
 
   useEffect(() => {
     initializeApp();
@@ -150,7 +152,7 @@ export default function App() {
         const routeData = await response.json();
         Alert.alert(
           'Route Planned!',
-          `Found ${routeData.routes.length} route options. ${routeData.explanation.substring(0, 100)}...`
+          `Found ${routeData.routes.length} route options. ${String(routeData.explanation).substring(0, 100)}...`
         );
       }
     } catch (error) {
@@ -205,14 +207,15 @@ export default function App() {
           // Update user points locally
           const updatedUser = {
             ...currentUser,
-            total_points: currentUser.total_points + result.points_awarded,
+            total_points: currentUser.total_points + result.points_awarded + (result.achievement?.awarded_points || 0),
             routes_completed: currentUser.routes_completed + 1,
+            badges: Array.from(new Set([...(currentUser.badges || []), ...((result.achievement?.unlocked || []) as string[])])),
           };
           
           setCurrentUser(updatedUser);
           await AsyncStorage.setItem('travelUser', JSON.stringify(updatedUser));
           
-          Alert.alert('🎉 Route Completed!', `You earned ${result.points_awarded} points!`);
+          Alert.alert('🎉 Route Completed!', `${result.motivation || 'Great job!'} You earned ${result.points_awarded} points!`);
         }
       }
     } catch (error) {
@@ -276,6 +279,21 @@ export default function App() {
         <TouchableOpacity style={styles.secondaryButton} onPress={completeRoute}>
           <Ionicons name="checkmark-circle" size={20} color="#007AFF" style={styles.buttonIcon} />
           <Text style={styles.secondaryButtonText}>Complete Demo Route</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.secondaryButton} onPress={() => router.push('/rewards')}>
+          <Ionicons name="pricetags" size={20} color="#007AFF" style={styles.buttonIcon} />
+          <Text style={styles.secondaryButtonText}>View Rewards</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.secondaryButton} onPress={() => router.push('/achievements')}>
+          <Ionicons name="ribbon" size={20} color="#007AFF" style={styles.buttonIcon} />
+          <Text style={styles.secondaryButtonText}>My Achievements</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.secondaryButton} onPress={() => router.push('/assistant')}>
+          <Ionicons name="chatbubble" size={20} color="#007AFF" style={styles.buttonIcon} />
+          <Text style={styles.secondaryButtonText}>Ask AI Assistant</Text>
         </TouchableOpacity>
       </View>
 
@@ -353,7 +371,7 @@ export default function App() {
       {/* Tab Navigation */}
       <View style={styles.tabContainer}>
         <TouchableOpacity
-          style={[styles.tab, currentView === 'home' && styles.activeTab]}
+          style={[styles.tab, currentView === 'home' &amp;&amp; styles.activeTab]}
           onPress={() => setCurrentView('home')}
         >
           <Ionicons
@@ -361,13 +379,13 @@ export default function App() {
             size={20}
             color={currentView === 'home' ? '#007AFF' : '#666'}
           />
-          <Text style={[styles.tabText, currentView === 'home' && styles.activeTabText]}>
+          <Text style={[styles.tabText, currentView === 'home' &amp;&amp; styles.activeTabText]}>
             Home
           </Text>
         </TouchableOpacity>
         
         <TouchableOpacity
-          style={[styles.tab, currentView === 'route' && styles.activeTab]}
+          style={[styles.tab, currentView === 'route' &amp;&amp; styles.activeTab]}
           onPress={() => setCurrentView('route')}
         >
           <Ionicons
@@ -375,13 +393,13 @@ export default function App() {
             size={20}
             color={currentView === 'route' ? '#007AFF' : '#666'}
           />
-          <Text style={[styles.tabText, currentView === 'route' && styles.activeTabText]}>
+          <Text style={[styles.tabText, currentView === 'route' &amp;&amp; styles.activeTabText]}>
             Routes
           </Text>
         </TouchableOpacity>
         
         <TouchableOpacity
-          style={[styles.tab, currentView === 'map' && styles.activeTab]}
+          style={[styles.tab, currentView === 'map' &amp;&amp; styles.activeTab]}
           onPress={() => setCurrentView('map')}
         >
           <Ionicons
@@ -389,13 +407,13 @@ export default function App() {
             size={20}
             color={currentView === 'map' ? '#007AFF' : '#666'}
           />
-          <Text style={[styles.tabText, currentView === 'map' && styles.activeTabText]}>
+          <Text style={[styles.tabText, currentView === 'map' &amp;&amp; styles.activeTabText]}>
             Map
           </Text>
         </TouchableOpacity>
         
         <TouchableOpacity
-          style={[styles.tab, currentView === 'profile' && styles.activeTab]}
+          style={[styles.tab, currentView === 'profile' &amp;&amp; styles.activeTab]}
           onPress={() => setCurrentView('profile')}
         >
           <Ionicons
@@ -403,13 +421,13 @@ export default function App() {
             size={20}
             color={currentView === 'profile' ? '#007AFF' : '#666'}
           />
-          <Text style={[styles.tabText, currentView === 'profile' && styles.activeTabText]}>
+          <Text style={[styles.tabText, currentView === 'profile' &amp;&amp; styles.activeTabText]}>
             Profile
           </Text>
         </TouchableOpacity>
         
         <TouchableOpacity
-          style={[styles.tab, currentView === 'leaderboard' && styles.activeTab]}
+          style={[styles.tab, currentView === 'leaderboard' &amp;&amp; styles.activeTab]}
           onPress={() => setCurrentView('leaderboard')}
         >
           <Ionicons
@@ -417,26 +435,26 @@ export default function App() {
             size={20}
             color={currentView === 'leaderboard' ? '#007AFF' : '#666'}
           />
-          <Text style={[styles.tabText, currentView === 'leaderboard' && styles.activeTabText]}>
+          <Text style={[styles.tabText, currentView === 'leaderboard' &amp;&amp; styles.activeTabText]}>
             Leaderboard
           </Text>
         </TouchableOpacity>
       </View>
 
       {/* Content */}
-      {currentView === 'home' && renderHomeView()}
-      {currentView === 'map' && <MapScreen />}
-      {currentView === 'profile' && renderProfileView()}
-      {(currentView === 'route' || currentView === 'leaderboard') && (
-        <View style={styles.content}>
-          <View style={styles.comingSoonContainer}>
-            <Ionicons name="construct" size={48} color="#666" />
-            <Text style={styles.comingSoonText}>Coming Soon!</Text>
-            <Text style={styles.comingSoonSubtext}>
+      {currentView === 'home' &amp;&amp; renderHomeView()}
+      {currentView === 'map' &amp;&amp; &lt;MapScreen /&gt;}
+      {currentView === 'profile' &amp;&amp; renderProfileView()}
+      {(currentView === 'route' || currentView === 'leaderboard') &amp;&amp; (
+        &lt;View style={styles.content}&gt;
+          &lt;View style={styles.comingSoonContainer}&gt;
+            &lt;Ionicons name="construct" size={48} color="#666" /&gt;
+            &lt;Text style={styles.comingSoonText}&gt;Coming Soon!&lt;/Text&gt;
+            &lt;Text style={styles.comingSoonSubtext}&gt;
               {currentView === 'route' ? 'Advanced route mapping and tracking' : 'Social leaderboards and competitions'}
-            </Text>
-          </View>
-        </View>
+            &lt;/Text&gt;
+          &lt;/View&gt;
+        &lt;/View&gt;
       )}
     </SafeAreaView>
   );
@@ -564,6 +582,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 14,
     borderRadius: 8,
+    marginTop: 10,
   },
   buttonIcon: {
     marginRight: 8,
