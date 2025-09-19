@@ -263,9 +263,14 @@ export default function App() {
       <View style={styles.actionSection}>
         <Text style={styles.sectionTitle}>Ready for Adventure?</Text>
         
-        <TouchableOpacity style={styles.primaryButton} onPress={planRoute}>
-          <Ionicons name="map" size={20} color="white" style={styles.buttonIcon} />
-          <Text style={styles.buttonText}>Plan New Route</Text>
+        <TouchableOpacity style={styles.primaryButton} onPress={() => setCurrentView('map')}>
+          <Ionicons name="navigate" size={20} color="white" style={styles.buttonIcon} />
+          <Text style={styles.buttonText}>Explore Map</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.secondaryButton} onPress={planRoute}>
+          <Ionicons name="map" size={20} color="#007AFF" style={styles.buttonIcon} />
+          <Text style={styles.secondaryButtonText}>Plan New Route</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.secondaryButton} onPress={completeRoute}>
