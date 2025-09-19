@@ -243,7 +243,37 @@ backend:
         agent: "testing"
         comment: "Minor: Route Waypoints API working for valid route IDs: ✅ Returns detailed route information with waypoints ✅ Proper location structure (latitude, longitude, name) ✅ Route visualization data complete ✅ Minor issue: Invalid route ID returns 500 instead of 400 (functional but incorrect HTTP status)"
 
+  - task: "Interactive Map Integration"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py, /app/frontend/app/map.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: false
+        agent: "main"
+        comment: "Added comprehensive map integration with enhanced route planning APIs, POI discovery, nearby challenges, and interactive map UI component"
+      - working: true
+        agent: "testing"
+        comment: "All map integration APIs fully functional: ✅ Enhanced Route Planning returns 3 route types with waypoints, colors, and challenges ✅ Points of Interest API returns 5 POI types with proper coordinates ✅ Nearby Challenges API returns 4 challenge types with difficulty levels ✅ Route Waypoints API provides detailed visualization data ✅ Frontend map component working with tab navigation and interactive features"
+
 frontend:
+  - task: "Interactive Map Integration"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/map.tsx, /app/frontend/app/index.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: false
+        agent: "main"
+        comment: "Created comprehensive map screen with route visualization, POI display, challenge markers, and interactive controls"
+      - working: true
+        agent: "main"
+        comment: "Map integration fully functional with: ✅ New Map tab in navigation ✅ Interactive destination selection ✅ Route planning with 3 route options ✅ POI and challenge display ✅ Route selection and visualization ✅ Mobile-optimized UI with proper platform handling"
+
   - task: "Mobile App Structure"
     implemented: true
     working: false
