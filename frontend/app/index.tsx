@@ -267,7 +267,7 @@ export default function App() {
       </View>
 
       {currentView === 'home' && renderHomeView()}
-      {currentView === 'map' && <MapScreen />}
+      {currentView === 'map' && <PokemonGoMap onLocationUpdate={setLocation} />}
       {currentView === 'profile' && renderProfileView()}
       {(currentView === 'route' || currentView === 'leaderboard') && (
         <View style={styles.content}>
