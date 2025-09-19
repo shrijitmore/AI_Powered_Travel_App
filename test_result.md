@@ -341,6 +341,110 @@ frontend:
     stuck_count: 0
     priority: "high"
     needs_retesting: false
+
+# --- Main agent update: new features added on backend and frontend ---
+backend:
+  - task: "Achievements API"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Added achievements data model and endpoints: list/create/status/check with unlocking logic and reward points"
+      - working: true
+        agent: "testing"
+        comment: "Achievements endpoints tested end-to-end via testing agent; seeding, status, and check flows work"
+
+  - task: "Rewards Store API"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Added rewards store CRUD and claim flow with point deduction and inventory"
+      - working: true
+        agent: "testing"
+        comment: "Rewards endpoints tested; insufficient points returns 400; claim success updates user"
+
+  - task: "Motivation Messages API"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Added motivation messages with triggers and integration into route/challenge completion responses"
+      - working: true
+        agent: "testing"
+        comment: "GET /api/motivation returns messages for all triggers"
+
+  - task: "Seed Endpoint"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "low"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Added POST /api/seed to bootstrap sample achievements, rewards, and messages"
+      - working: true
+        agent: "testing"
+        comment: "Seed executed successfully in tests"
+
+frontend:
+  - task: "Achievements Screen"
+    implemented: true
+    working: false
+    file: "/app/frontend/app/achievements.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "main"
+        comment: "New Achievements screen integrated with backend; manual/automated UI testing pending"
+
+  - task: "Rewards Screen"
+    implemented: true
+    working: false
+    file: "/app/frontend/app/rewards.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "main"
+        comment: "New Rewards Store screen integrated with backend; manual/automated UI testing pending"
+
+  - task: "AI Assistant Screen"
+    implemented: true
+    working: false
+    file: "/app/frontend/app/assistant.tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "main"
+        comment: "New AI chat screen using /api/chat; depends on AI budget; UI testing pending"
+
+agent_communication:
+  - agent: "main"
+    message: "Extended repo to include Achievements, Rewards Store, Motivation systems (backend + frontend). Backend tested OK. Expo restarted. Please advise if you want frontend automated testing now and whether to add full Paths/Tasks tables and Google Maps integration."
+
     status_history:
       - working: false
         agent: "main"
