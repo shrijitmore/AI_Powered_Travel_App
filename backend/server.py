@@ -403,6 +403,93 @@ async def get_leaderboard(limit: int = 10):
     users = await db.users.find().sort("total_points", -1).limit(limit).to_list(limit)
     return serialize_doc(users)
 
+# Map-specific APIs for interactive features
+
+@app.get("/api/map/points-of-interest")
+async def get_points_of_interest(lat: float, lon: float, radius: float = 0.1):
+    """Get points of interest around a location for map display"""
+    try:
+        # Generate sample POIs around the location
+        pois = []
+        poi_types = ["restaurant", "landmark", "viewpoint", "gas_station", "hotel"]
+        
+        for i, poi_type in enumerate(poi_types):
+            # Create POIs around the location
+            lat_offset = (i - 2) * 0.02
+            lon_offset = ((i % 2) - 0.5) * 0.02
+            
+            poi = {
+                "id": f"poi_{i}",
+                "type": poi_type,
+                "name": f"{poi_type.replace('_', ' ').title()} {i+1}",
+                "location": {
+                    "latitude": lat + lat_offset,
+                    "longitude": lon + lon_offset,
+                    "name": f"{poi_type.replace('_', ' ').title()} {i+1}"
+                },
+                "description": f"Interesting {poi_type.replace('_', ' ')} near your route",
+                "rating": 4.0 + (i * 0.2),
+                "challenge_available": i % 2 == 0
+            }
+            pois.append(poi)
+        
+        return {"points_of_interest": pois}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching POIs: {str(e)}")
+
+@app.get("/api/map/challenges/nearby")
+async def get_nearby_challenges(lat: float, lon: float, radius: float = 0.1):
+    """Get challenges near a location for map display"""
+    try:
+        # Find challenges near the location (simplified)
+        challenges = []
+        challenge_types = ["photo", "food", "location", "hidden_gem"]
+        
+        for i, challenge_type in enumerate(challenge_types):
+            lat_offset = (i - 1.5) * 0.015
+            lon_offset = ((i % 2) - 0.5) * 0.015
+            
+            challenge = {
+                "id": f"map_challenge_{i}",
+                "type": challenge_type,
+                "title": f"{challenge_type.replace('_', ' ').title()} Challenge",
+                "description": f"Complete this {challenge_type} challenge for rewards!",
+                "location": {
+                    "latitude": lat + lat_offset,
+                    "longitude": lon + lon_offset,
+                    "name": f"{challenge_type.title()} Spot"
+                },
+                "points": 15 + (i * 5),
+                "difficulty": ["easy", "medium", "hard"][i % 3],
+                "completed": False
+            }
+            challenges.append(challenge)
+        
+        return {"challenges": challenges}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching challenges: {str(e)}")
+
+@app.get("/api/routes/{route_id}/waypoints")
+async def get_route_waypoints(route_id: str):
+    """Get detailed waypoints for a route for map visualization"""
+    try:
+        if not ObjectId.is_valid(route_id):
+            raise HTTPException(status_code=400, detail="Invalid route ID format")
+        
+        route = await db.routes.find_one({"_id": ObjectId(route_id)})
+        if not route:
+            raise HTTPException(status_code=404, detail="Route not found")
+        
+        # Return the route with waypoints for map display
+        return serialize_doc(route)
+        
+    except InvalidId:
+        raise HTTPException(status_code=400, detail="Invalid route ID format")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching route waypoints: {str(e)}")
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8001)
