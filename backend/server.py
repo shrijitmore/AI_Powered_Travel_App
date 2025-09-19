@@ -136,7 +136,7 @@ async def get_user(user_id: str):
     except InvalidId:
         raise HTTPException(status_code=400, detail="Invalid user ID format")
 
-# Route Planning with AI
+# Route Planning with AI - Enhanced for Map Integration
 @app.post("/api/routes/plan")
 async def plan_route(route_request: RouteRequest):
     try:
@@ -163,28 +163,110 @@ async def plan_route(route_request: RouteRequest):
         message = UserMessage(text=prompt)
         ai_response = await chat.send_message(message)
         
-        # Generate sample route data (in real app, you'd integrate with mapping APIs)
+        # Generate enhanced route data with waypoints for map visualization
+        start_lat, start_lon = route_request.start.latitude, route_request.start.longitude
+        end_lat, end_lon = route_request.end.latitude, route_request.end.longitude
+        
+        # Calculate intermediate waypoints for different route types
+        def generate_waypoints(route_type: str, num_points: int = 3):
+            waypoints = []
+            for i in range(1, num_points + 1):
+                progress = i / (num_points + 1)
+                
+                if route_type == "scenic":
+                    # Add some curve for scenic route
+                    lat_offset = (end_lat - start_lat) * progress + 0.01 * (i % 2 - 0.5)
+                    lon_offset = (end_lon - start_lon) * progress + 0.01 * (i % 2 - 0.5)
+                elif route_type == "fastest":
+                    # Direct route
+                    lat_offset = (end_lat - start_lat) * progress
+                    lon_offset = (end_lon - start_lon) * progress
+                else:  # cheapest
+                    # Slightly different path
+                    lat_offset = (end_lat - start_lat) * progress + 0.005 * (1 - progress)
+                    lon_offset = (end_lon - start_lon) * progress - 0.005 * progress
+                
+                waypoints.append({
+                    "latitude": start_lat + lat_offset,
+                    "longitude": start_lon + lon_offset,
+                    "name": f"Waypoint {i}"
+                })
+            return waypoints
+        
         routes = [
             {
                 "type": "fastest",
                 "distance": 120.5,
-                "duration": 90,  # minutes
+                "duration": 90,
                 "description": "Highway route via main roads",
-                "waypoints": []
+                "waypoints": generate_waypoints("fastest"),
+                "color": "#FF6B6B",
+                "challenges": [
+                    {
+                        "type": "photo",
+                        "title": "Highway Milestone",
+                        "description": "Take a photo at the highway rest stop",
+                        "location": {
+                            "latitude": start_lat + (end_lat - start_lat) * 0.5,
+                            "longitude": start_lon + (end_lon - start_lon) * 0.5,
+                            "name": "Highway Rest Stop"
+                        },
+                        "points": 15
+                    }
+                ]
             },
             {
                 "type": "scenic",
                 "distance": 145.2,
                 "duration": 120,
                 "description": "Scenic route through countryside",
-                "waypoints": []
+                "waypoints": generate_waypoints("scenic"),
+                "color": "#4ECDC4",
+                "challenges": [
+                    {
+                        "type": "photo",
+                        "title": "Scenic Viewpoint",
+                        "description": "Capture the beautiful countryside view",
+                        "location": {
+                            "latitude": start_lat + (end_lat - start_lat) * 0.3 + 0.01,
+                            "longitude": start_lon + (end_lon - start_lon) * 0.3 + 0.01,
+                            "name": "Scenic Overlook"
+                        },
+                        "points": 25
+                    },
+                    {
+                        "type": "food",
+                        "title": "Local Delicacy",
+                        "description": "Try a local specialty at the roadside diner",
+                        "location": {
+                            "latitude": start_lat + (end_lat - start_lat) * 0.7,
+                            "longitude": start_lon + (end_lon - start_lon) * 0.7,
+                            "name": "Country Diner"
+                        },
+                        "points": 20
+                    }
+                ]
             },
             {
                 "type": "cheapest",
                 "distance": 135.8,
                 "duration": 105,
                 "description": "Budget-friendly route avoiding tolls",
-                "waypoints": []
+                "waypoints": generate_waypoints("cheapest"),
+                "color": "#FFD93D",
+                "challenges": [
+                    {
+                        "type": "location",
+                        "title": "Hidden Gem",
+                        "description": "Discover the local market",
+                        "location": {
+                            "latitude": start_lat + (end_lat - start_lat) * 0.6,
+                            "longitude": start_lon + (end_lon - start_lon) * 0.6 - 0.005,
+                            "name": "Local Market"
+                        },
+                        "points": 30
+                    }
+                ]
             }
         ]
         
