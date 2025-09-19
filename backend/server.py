@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 import uuid
 import random
+import math
 
 load_dotenv()
 
@@ -153,6 +154,26 @@ class PathSuggestResponse(BaseModel):
     paths: List[Dict[str, Any]]
     explanation: str
 
+# NEW: AI Nearby Suggestions
+class NearbySuggestRequest(BaseModel):
+    lat: float
+    lon: float
+    goal: Optional[str] = "scenic"  # 'scenic' | 'food' | 'history' | 'adventurous'
+    radius_km: float = 3.0
+    limit: int = 5
+
+class NearbySuggestion(BaseModel):
+    name: str
+    type: str
+    location: Location
+    reason: str
+    score: float
+    suggested_tasks: List[str] = []
+
+class NearbySuggestResponse(BaseModel):
+    suggestions: List[NearbySuggestion]
+    explanation: str
+
 # Initialize AI Chat
 
 def get_ai_chat():
@@ -205,6 +226,18 @@ async def check_and_award_achievements(user_id: str) -> Dict[str, Any]:
 
     return {"unlocked": unlocked, "awarded_points": awarded_points}
 
+# Helpers
+
+def haversine_km(lat1, lon1, lat2, lon2):
+    R = 6371.0
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c
+
 # API Routes
 @app.get("/api/health")
 async def health_check():
@@ -246,9 +279,7 @@ async def plan_route(route_request: RouteRequest):
         2. Estimated distance and duration for each
         3. Key points of interest along each route
         4. Trade-offs explanation
-        5. Recommend 2-3 challenges/tasks for travelers (like trying local food, taking photos at landmarks, etc.)
-
-        Format your response as practical travel advice with specific recommendations.
+        5. Recommend 2-3 challenges/tasks for travelers
         """
         message = UserMessage(text=prompt)
         ai_response = await chat.send_message(message)
@@ -743,6 +774,91 @@ async def suggest_paths(req: PathSuggestRequest):
         return PathSuggestResponse(paths=paths, explanation=explanation)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error suggesting paths: {str(e)}")
+
+# NEW: AI Nearby Suggestions
+@app.post("/api/ai/nearby-suggestions")
+async def ai_nearby_suggestions(req: NearbySuggestRequest):
+    try:
+        # Generate base POIs around location (reuse logic)
+        lat, lon = req.lat, req.lon
+        poi_types = ["restaurant", "landmark", "viewpoint", "gas_station", "hotel"]
+        pois = []
+        for i, poi_type in enumerate(poi_types):
+            # spread several of each type
+            for j in range(2):
+                lat_offset = (i - 2) * 0.01 + j * 0.005
+                lon_offset = ((i % 2) - 0.5) * 0.01 + j * 0.005
+                loc = {
+                    "latitude": lat + lat_offset,
+                    "longitude": lon + lon_offset,
+                    "name": f"{poi_type.replace('_',' ').title()} {i*2+j+1}",
+                }
+                dist = haversine_km(lat, lon, loc["latitude"], loc["longitude"])
+                if dist <= req.radius_km * 1.5:  # soft radius
+                    pois.append({
+                        "type": poi_type,
+                        "name": loc["name"],
+                        "location": loc,
+                        "distance_km": dist,
+                    })
+
+        # Simple goal-based scoring
+        goal = (req.goal or "scenic").lower()
+        goal_weights = {
+            "scenic": {"viewpoint": 3, "landmark": 2, "hotel": 0.5, "restaurant": 1, "gas_station": 0.2},
+            "food": {"restaurant": 3, "landmark": 1, "viewpoint": 1, "hotel": 0.5, "gas_station": 0.1},
+            "history": {"landmark": 3, "viewpoint": 1.5, "restaurant": 0.5, "hotel": 0.3, "gas_station": 0.1},
+            "adventurous": {"viewpoint": 2.5, "landmark": 2, "restaurant": 0.8, "hotel": 0.3, "gas_station": 0.1},
+        }
+        weights = goal_weights.get(goal, goal_weights["scenic"])
+
+        suggestions: List[NearbySuggestion] = []
+        for p in pois:
+            type_w = weights.get(p["type"], 0.5)
+            prox_w = max(0.0, (req.radius_km - p["distance_km"]) / max(req.radius_km, 0.001))
+            score = type_w * 0.7 + prox_w * 0.3
+            reason = {
+                "scenic": f"Great views and photo spots near {p['name']}.",
+                "food": f"Popular food stop: {p['name']}.",
+                "history": f"Cultural/landmark stop: {p['name']}.",
+                "adventurous": f"Good exploration point around {p['name']}.",
+            }.get(goal, f"Nice spot: {p['name']}.")
+            tasks = []
+            if p["type"] == "viewpoint":
+                tasks.append("Take a panoramic photo and rate the view")
+            if p["type"] == "landmark":
+                tasks.append("Find a unique detail and snap a picture")
+            if p["type"] == "restaurant":
+                tasks.append("Try a local specialty and leave a short review")
+            if not tasks:
+                tasks.append("Check-in and share a quick note")
+
+            suggestions.append(NearbySuggestion(
+                name=p["name"],
+                type=p["type"],
+                location=Location(**p["location"]),
+                reason=reason,
+                score=round(score, 3),
+                suggested_tasks=tasks,
+            ))
+
+        # Sort and trim by limit
+        suggestions.sort(key=lambda x: x.score, reverse=True)
+        suggestions = suggestions[: max(1, min(req.limit, 10))]
+
+        # Ask AI for a short motivating explanation
+        chat = get_ai_chat()
+        poi_names = ", ".join([s.name for s in suggestions])
+        prompt = f"""
+        The user is at lat {lat}, lon {lon} with goal '{goal}'.
+        Given nearby places: {poi_names}
+        Provide a 2-3 sentence motivating summary on why these are good choices now.
+        """
+        explanation = await chat.send_message(UserMessage(text=prompt))
+
+        return NearbySuggestResponse(suggestions=suggestions, explanation=explanation)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating nearby suggestions: {str(e)}")
 
 # NEW: Tasks APIs
 @app.post("/api/tasks")

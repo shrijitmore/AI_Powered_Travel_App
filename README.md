@@ -62,54 +62,14 @@ Quick Start
 - POST /api/seed to create sample achievements, rewards, motivation messages, example paths & tasks
 
 Data Models (Mongo)
-- User
-  - id, name, email
-  - total_points (int), level (int), routes_completed (int)
-  - badges [string]
-  - achievements [string]
-  - rewards_owned [string] (reward item ids)
-  - created_at (datetime)
-
-- PathModel (Paths/Journeys)
-  - id, name
-  - start_point { latitude, longitude, name }
-  - end_point { latitude, longitude, name }
-  - difficulty (Easy | Medium | Hard)
-  - ai_suggested (bool)
-  - created_at (datetime)
-
-- TaskModel (Missions)
-  - id, path_id (string id of Path)
-  - task_description (string)
-  - reward_points (int)
-  - status (Not Started | In Progress | Completed)
-  - created_at, completed_at
-
-- Route (Legacy journey object used for route planning/completion + map)
-  - id, user_id
-  - start Location, end Location
-  - waypoints [Location], route_type (fastest|scenic|cheapest)
-  - distance, duration
-  - ai_description, points_earned, completed, created_at
-
-- Challenge (additional challenges tied to routes)
-  - id, route_id, type (photo|food|location|hidden_gem)
-  - title, description, location, points
-  - completed, completed_at
-
-- Achievement
-  - id, title
-  - condition_type (points | routes_completed)
-  - condition_value (int)
-  - reward_points (int)
-  - badge_icon (base64 optional)
-
-- RewardItem (Rewards Store)
-  - id, item_name, cost, category (Badge|Boost|Cosmetic)
-
-- MotivationMessage
-  - id, trigger_event (task_completed|route_completed|daily_login)
-  - message_text
+- User: id, name, email, total_points, level, routes_completed, badges[], achievements[], rewards_owned[], created_at
+- PathModel: id, name, start_point, end_point, difficulty, ai_suggested, created_at
+- TaskModel: id, path_id, task_description, reward_points, status, created_at, completed_at
+- Route: id, user_id, start, end, waypoints[], route_type, distance, duration, ai_description, points_earned, completed, created_at
+- Challenge: id, route_id, type, title, description, location, points, completed, completed_at
+- Achievement: id, title, condition_type, condition_value, reward_points, badge_icon
+- RewardItem: id, item_name, cost, category
+- MotivationMessage: id, trigger_event, message_text
 
 API Reference (All routes prefixed by /api)
 Health
@@ -117,7 +77,6 @@ Health
 
 Users
 - POST /api/users → create user
-  body: { name, email, total_points?, level?, badges?, routes_completed? }
 - GET /api/users/{user_id} → user details
 
 Paths (Journeys)
@@ -139,182 +98,111 @@ Tasks (Per Path)
   - returns: { task, points_awarded, achievement, motivation }
 
 Route Planning
-- POST /api/routes/plan
-  body: { start: Location, end: Location, preferences: {} }
-  returns: { routes: [ { type, distance, duration, description, waypoints[], color, challenges[] } ], explanation }
+- POST /api/routes/plan → AI route options + challenges
 
 Routes
-- POST /api/routes → save a route for a user
-- GET /api/routes/user/{user_id} → list user routes
-- PATCH /api/routes/{route_id}/complete?user_id=...
-  returns: { message, points_awarded, achievement:{ unlocked[], awarded_points }, motivation }
+- POST /api/routes → save
+- GET /api/routes/user/{user_id} → list
+- PATCH /api/routes/{route_id}/complete?user_id=... → awards points + achievement check + motivation
 
 Route Waypoints
-- GET /api/routes/{route_id}/waypoints → route with waypoints for map
-  Note: Invalid IDs may return 400 (and in a minor edge path, possibly 500). Can be patched.
+- GET /api/routes/{route_id}/waypoints → route with waypoints for map (minor edge case: invalid ID may return 500)
 
 Challenges
 - POST /api/challenges → create
 - GET /api/challenges/route/{route_id} → list
-- PATCH /api/challenges/{challenge_id}/complete?user_id=...
-  returns: { message, points_awarded, achievement, motivation }
+- PATCH /api/challenges/{challenge_id}/complete?user_id=... → awards points + motivation
 
 Achievements
 - GET /api/achievements → list config
 - POST /api/achievements → create
-- GET /api/achievements/status?user_id=...
-  returns: per-achievement unlocked flag
-- POST /api/achievements/check?user_id=...
-  returns: { unlocked: [titles], awarded_points }
+- GET /api/achievements/status?user_id=... → unlocked flags per achievement
+- POST /api/achievements/check?user_id=... → { unlocked[], awarded_points }
 
 Rewards Store
 - GET /api/rewards/items → list store items
-- POST /api/rewards/items → create store item
-- GET /api/rewards/user/{user_id}/inventory → list owned items
-- POST /api/rewards/claim { user_id, item_id } → deduct points and add to inventory
+- POST /api/rewards/items → create item
+- GET /api/rewards/user/{user_id}/inventory → owned items
+- POST /api/rewards/claim { user_id, item_id } → deduct points + add to inventory
 
 Motivation
 - GET /api/motivation?trigger=task_completed|route_completed|daily_login → one message
 
 Seed
-- POST /api/seed → seeds achievements, rewards, motivation messages, and sample paths/tasks
+- POST /api/seed → seeds achievements, rewards, messages, paths & tasks
+
+NEW: AI Nearby Suggestions (based on user location)
+- POST /api/ai/nearby-suggestions
+  Request body:
+  {
+    "lat": number,
+    "lon": number,
+    "goal": "scenic" | "food" | "history" | "adventurous", // default scenic
+    "radius_km": number,   // default 3.0
+    "limit": number        // default 5
+  }
+  Response:
+  {
+    "suggestions": [
+      {
+        "name": string,
+        "type": "restaurant" | "landmark" | "viewpoint" | "gas_station" | "hotel",
+        "location": { "latitude": number, "longitude": number, "name": string },
+        "reason": string,
+        "score": number,            // relevance score (goal fit + proximity)
+        "suggested_tasks": [string] // micro-tasks to gamify the visit
+      }
+    ],
+    "explanation": string // brief motivating AI summary
+  }
+  Notes:
+  - The endpoint synthesizes nearby POIs and ranks them for the goal, returns tasks per suggestion, and includes an AI-written summary.
 
 Sample curl Snippets
-- Seed
-  curl -X POST "$BASE/api/seed"
-
-- Create User
-  curl -X POST "$BASE/api/users" -H "Content-Type: application/json" -d '{"name":"Explorer","email":"e@x.com"}'
-
-- Suggest Paths (Scenic)
-  curl -X POST "$BASE/api/paths/suggest" -H "Content-Type: application/json" -d '{"goal":"scenic","count":3}'
-
-- List Paths (AI suggested)
-  curl "$BASE/api/paths?ai_suggested=true"
-
-- List Tasks for a Path
-  curl "$BASE/api/paths/<path_id>/tasks"
-
-- Complete Task
-  curl -X PATCH "$BASE/api/tasks/<task_id>/status?status=Completed&user_id=<user_id>"
-
-- Plan Route
-  curl -X POST "$BASE/api/routes/plan" -H "Content-Type: application/json" -d '{"start":{"latitude":37.77,"longitude":-122.42,"name":"A"},"end":{"latitude":37.79,"longitude":-122.40,"name":"B"},"preferences":{"type":"scenic"}}'
-
-- Complete Route
-  curl -X PATCH "$BASE/api/routes/<route_id>/complete?user_id=<user_id>"
-
-- Claim Reward
-  curl -X POST "$BASE/api/rewards/claim" -H "Content-Type: application/json" -d '{"user_id":"<user_id>","item_id":"<item_id>"}'
+- Nearby AI Suggestions (Food)
+  curl -X POST "$BASE/api/ai/nearby-suggestions" \
+    -H "Content-Type: application/json" \
+    -d '{"lat":37.7749, "lon":-122.4194, "goal":"food", "radius_km":3, "limit":5}'
 
 Frontend – App Structure (expo-router)
 Routes
-- / (app/index.tsx)
-  - Home tab-like interface
-  - Buttons:
-    - Explore Map → /map
-    - Select Destination | Paths → /paths
-    - Plan New Route (calls /api/routes/plan)
-    - Complete Demo Route (creates + completes a route)
-    - View Rewards → /rewards
-    - My Achievements → /achievements
-    - Ask AI Assistant → /assistant
-- /map (map.tsx) – placeholder map UI with POI and challenges lists for mobile
-- /achievements (achievements.tsx)
-  - Lists achievements and unlocked status
-  - “Check” triggers /api/achievements/check + refresh
-- /rewards (rewards.tsx)
-  - Lists items from store
-  - Claim deducts points and updates AsyncStorage
-- /assistant (assistant.tsx)
-  - Minimal chat posting to /api/chat with user context
-- /paths (paths/index.tsx)
-  - Lists paths (calls /api/paths)
-  - AI Suggest buttons (Scenic/Shortest/Adventurous) → /api/paths/suggest
-  - Opens /paths/[id]
-- /paths/[id] (paths/[id].tsx)
-  - Path info + tasks
-  - Task transitions Not Started → In Progress → Completed
-  - Completing awards points, triggers motivation + achievements refresh
+- / (index.tsx)
+  - Buttons: Explore Map, Select Destination | Paths, Plan New Route, Complete Demo Route, Rewards, Achievements, Assistant
+- /map (map.tsx)
+  - New: "AI Explore Nearby" button with quick goal chips (Scenic, Food, History, Adventure)
+  - Opens an AI Suggestions modal showing name/type/score/reason/suggested tasks and an explanation
+- /achievements, /rewards, /assistant – as described earlier
+- /paths and /paths/[id] – as described earlier
 
-Mobile UX Concerns
-- SafeAreaView used across screens
-- KeyboardAvoidingView in assistant.tsx
-- Minimum 44x touch targets for buttons
-- No absolute-positioned main content
-- Platform differences handled via Platform.select and conditional padding
+Mobile UX
+- Safe areas, thumb-friendly controls, minimal modals with clear actions
+- Keyboard handling in assistant
+- No absolute main layouts; all flex; minimum 44pt touch areas
 
-Environment Variables & URLs
-- Backend
-  - backend/.env → MONGO_URL, DB_NAME, EMERGENT_LLM_KEY (do not print or commit real keys)
-  - Service binds to 0.0.0.0:8001
-  - All routes use /api prefix
-- Frontend
-  - frontend/.env → EXPO_PUBLIC_BACKEND_URL points to the ingress domain
-  - In code: Constants.expoConfig?.extra?.EXPO_PUBLIC_BACKEND_URL (fallback to http://localhost:8001)
-
-Workflows
-1) Start Journey
-- User opens /paths → selects an AI-suggested or existing path → starts tasks
-- Alternatively: plan route → save → complete
-
-2) Task Completion
-- Update task status to Completed → user gets reward_points → motivational message returned → achievements auto-checked and possibly unlocked with bonus points
-
-3) Reward Claim
-- Visit Rewards → claim item if points sufficient → points deducted → item added to inventory
-
-4) AI Assistant
-- /assistant posts question with user context to /api/chat
-- /api/paths/suggest generates journeys based on goal (scenic/shortest/adventurous)
-
-Testing & Protocol
-- test_result.md contains testing protocol (DO NOT EDIT THE PROTOCOL SECTION)
-- Backend tests have been run via platform testing agent; endpoints verified
-- Frontend UI tests can be run on request (Playwright in CI or manual testing in Expo Go)
-- Manual smoke test checklist:
-  - Create user on first app launch
-  - Seed data (optional)
-  - Open Paths; AI suggest; open a path → complete a task → verify points and achievements
-  - Plan route; complete route → verify points and motivation
-  - Claim a reward → verify points deduction and inventory
-
-AI Integration Notes
-- Uses Emergent Integrations – LlmChat with model (gemini-2.5-pro)
-- No extra keys required by you in this environment (EMERGENT_LLM_KEY configured)
-- Budget: If AI budget is exhausted, AI endpoints may return an error; core logic is resilient and still functions
-
-Known Minor Issue
-- For invalid route IDs at /api/routes/{id}/waypoints, in one execution path HTTP 500 may be returned instead of 400. This is non-blocking but can be patched quickly if needed.
-
-Roadmap / Next Enhancements
-- Real map (react-native-maps) with polylines, markers, and Google Maps tiles (needs an API key)
-- Streak tracker (daily login) + analytics charts on Profile
-- Personalization loop (suggest based on user history and preferences); per-user suggestions via /api/paths/suggest that use user history
-- Offline caching and background refresh with @tanstack/react-query
-- Push notifications (expo-notifications) for streaks and task reminders
-- Advanced leaderboard (friends-only, weekly, monthly)
+Workflows (End-to-End)
+- AI Nearby Exploration
+  1) User opens Map, taps "AI Explore Nearby"
+  2) Selects a goal (e.g., Food)
+  3) Backend returns ranked suggestions + tasks + AI explanation
+  4) User can pick one and manually plan route to it (or we can auto-plan in future)
 
 Troubleshooting
-- Expo dependency version warnings: The environment may suggest specific versions; the app works with current versions. Update only if needed and test thoroughly.
-- AI budget exceeded: Retry later or add budget to Emergent Universal Key.
-- 500 vs 400 on route waypoints invalid ID: non-blocking; can be patched on request.
+- AI budget exhaustion may temporarily affect explanation text; suggestions still generate via heuristic ranking
+- If no location permission, the map and AI explore feature will prompt/retry
+
+Roadmap
+- One-tap "Navigate" from AI suggestion (auto-plan route to the suggestion’s location)
+- Tie suggested_tasks directly to Task system for instant logging
+- Personalization using user history to bias goals and POIs
+- Real maps with react-native-maps & polylines (needs Google Maps API key)
 
 Change Log (Recent)
-- Added Achievements system (APIs + frontend screen)
-- Added Rewards Store (APIs + frontend screen)
-- Added Motivation messages (APIs + triggers in completion flows)
-- Added Paths & Tasks models + APIs
-- Added AI Path Suggestion endpoint
-- Added Paths screens (list + detail) with task status updates
-- Home button: “Select Destination | Paths”
+- Added: Paths & Tasks models/APIs and screens
+- Added: AI Path Suggestion endpoint and UI
+- Added: Home button to open Paths
+- Added: AI Nearby Suggestions endpoint and Map UI (modal with tasks + explanation)
 
 Ownership
 - Backend: app/backend/server.py
-- Frontend routes: app/frontend/app
-- Documentation: app/README.md
-
-Contact & Next Steps
-- Confirm if you want full Google Maps integration (provide API key)
-- Ask to enable automated frontend UI tests
-- Request personalization logic per user history (will extend AI suggest accordingly)
+- Frontend: app/frontend/app
+- Docs: app/README.md
