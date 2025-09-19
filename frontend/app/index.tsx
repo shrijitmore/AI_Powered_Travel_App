@@ -376,6 +376,20 @@ export default function App() {
         </TouchableOpacity>
         
         <TouchableOpacity
+          style={[styles.tab, currentView === 'map' && styles.activeTab]}
+          onPress={() => setCurrentView('map')}
+        >
+          <Ionicons
+            name="navigate"
+            size={20}
+            color={currentView === 'map' ? '#007AFF' : '#666'}
+          />
+          <Text style={[styles.tabText, currentView === 'map' && styles.activeTabText]}>
+            Map
+          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
           style={[styles.tab, currentView === 'profile' && styles.activeTab]}
           onPress={() => setCurrentView('profile')}
         >
