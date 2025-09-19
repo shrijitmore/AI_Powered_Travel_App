@@ -28,9 +28,7 @@ export default function PathsListScreen() {
   }, []);
 
   const seedIfEmpty = async () => {
-    try {
-      await fetch(`${API_BASE}/api/seed`, { method: 'POST' });
-    } catch {}
+    try { await fetch(`${API_BASE}/api/seed`, { method: 'POST' }); } catch {}
   };
 
   const loadPaths = async () => {
@@ -41,10 +39,7 @@ export default function PathsListScreen() {
         if (Array.isArray(data) && data.length === 0) {
           await seedIfEmpty();
           const resp2 = await fetch(`${API_BASE}/api/paths`);
-          if (resp2.ok) {
-            const data2 = await resp2.json();
-            setPaths(data2);
-          }
+          if (resp2.ok) setPaths(await resp2.json());
         } else {
           setPaths(data);
         }
@@ -52,6 +47,25 @@ export default function PathsListScreen() {
     } catch (e) {
       console.error('loadPaths error', e);
       Alert.alert('Error', 'Failed to load paths');
+    }
+  };
+
+  const suggest = async (goal: 'scenic' | 'shortest' | 'adventurous') => {
+    try {
+      const resp = await fetch(`${API_BASE}/api/paths/suggest`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ goal, count: 3 })
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        await loadPaths();
+        Alert.alert('AI Suggested', String(data.explanation).substring(0, 120) + '...');
+      } else {
+        Alert.alert('Error', 'Could not get suggestions');
+      }
+    } catch (e) {
+      console.error('suggest error', e);
+      Alert.alert('Error', 'Suggestion failed');
     }
   };
 
@@ -76,12 +90,25 @@ export default function PathsListScreen() {
         <View style={{ width: 24 }} />
       </View>
 
+      <View style={styles.suggestRow}>
+        <Text style={styles.suggestTitle}>AI Suggest:</Text>
+        <TouchableOpacity style={[styles.suggestBtn, { backgroundColor: '#4ECDC4' }]} onPress={() => suggest('scenic')}>
+          <Text style={styles.suggestBtnText}>Scenic</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.suggestBtn, { backgroundColor: '#FF6B6B' }]} onPress={() => suggest('shortest')}>
+          <Text style={styles.suggestBtnText}>Shortest</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.suggestBtn, { backgroundColor: '#6C5CE7' }]} onPress={() => suggest('adventurous')}>
+          <Text style={styles.suggestBtnText}>Adventurous</Text>
+        </TouchableOpacity>
+      </View>
+
       <ScrollView contentContainerStyle={styles.list}>
         {paths.map((p) => (
           <TouchableOpacity key={p.id} style={styles.card} onPress={() => router.push(`/paths/${p.id}`)}>
             <View style={styles.cardHeader}>
               <Text style={styles.cardTitle}>{p.name}</Text>
-              {p.ai_suggested && <View style={styles.tag}><Text style={styles.tagText}>AI Suggested</Text></View>}
+              {p.ai_suggested && <View style={styles.tag}><Text style={styles.tagText}>AI</Text></View>}
             </View>
             <Text style={styles.cardText}>Difficulty: {p.difficulty}</Text>
             <Text style={styles.cardSub}>{p.start_point?.name} → {p.end_point?.name}</Text>
@@ -108,6 +135,10 @@ const styles = StyleSheet.create({
   cardTitle: { fontWeight: '700', color: '#333', fontSize: 16 },
   cardText: { color: '#555' },
   cardSub: { color: '#777', marginTop: 4 },
-  tag: { backgroundColor: '#E3F2FD', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
-  tagText: { color: '#0A63C9', fontSize: 12, fontWeight: '600' },
+  tag: { backgroundColor: '#E3F2FD', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
+  tagText: { color: '#0A63C9', fontSize: 10, fontWeight: '800' },
+  suggestRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#EEE' },
+  suggestTitle: { fontWeight: '700', color: '#333', marginRight: 8 },
+  suggestBtn: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 6 },
+  suggestBtnText: { color: 'white', fontWeight: '700', fontSize: 12 },
 });

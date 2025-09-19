@@ -144,6 +144,15 @@ class TaskModel(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     completed_at: Optional[datetime] = None
 
+class PathSuggestRequest(BaseModel):
+    goal: str  # 'scenic' | 'shortest' | 'adventurous'
+    center: Optional[Location] = None
+    count: int = 3
+
+class PathSuggestResponse(BaseModel):
+    paths: List[Dict[str, Any]]
+    explanation: str
+
 # Initialize AI Chat
 
 def get_ai_chat():
@@ -664,12 +673,82 @@ async def get_path(path_id: str):
         raise HTTPException(status_code=404, detail="Path not found")
     return serialize_doc(item)
 
+# NEW: AI Path Suggestion
+@app.post("/api/paths/suggest")
+async def suggest_paths(req: PathSuggestRequest):
+    try:
+        chat = get_ai_chat()
+        center = req.center or Location(latitude=37.7749, longitude=-122.4194, name="Center")
+        prompt = f"""
+        The user wants {req.goal} travel paths around {center.name} (lat {center.latitude}, lon {center.longitude}).
+        Suggest {req.count} concise path names and a one-line rationale overall.
+        """
+        message = UserMessage(text=prompt)
+        explanation = await chat.send_message(message)
+
+        difficulties = {
+            "scenic": ["Medium", "Hard", "Medium"],
+            "adventurous": ["Hard", "Hard", "Medium"],
+            "shortest": ["Easy", "Easy", "Medium"],
+        }
+        diffs = difficulties.get(req.goal.lower(), ["Easy", "Medium", "Hard"])
+
+        paths = []
+        for i in range(max(1, min(req.count, 5))):
+            lat_off = (i - 1) * 0.02
+            lon_off = ((i % 2) - 0.5) * 0.02
+            start = {
+                "latitude": center.latitude + lat_off,
+                "longitude": center.longitude + lon_off,
+                "name": f"Start {i+1}",
+            }
+            end = {
+                "latitude": center.latitude + lat_off + 0.03,
+                "longitude": center.longitude + lon_off + 0.03,
+                "name": f"End {i+1}",
+            }
+            name = {
+                "scenic": ["Scenic Ridge Loop", "Lake Panorama Route", "Forest Canopy Trail"],
+                "adventurous": ["Rocky Scramble", "Canyon Descent", "Peak Ascent Express"],
+                "shortest": ["Direct City Link", "Quick Park Connector", "Straightline Stroll"],
+            }.get(req.goal.lower(), ["Explorer Path A", "Explorer Path B", "Explorer Path C"])[i % 3]
+
+            path_doc = {
+                "name": name,
+                "start_point": start,
+                "end_point": end,
+                "difficulty": diffs[i % len(diffs)],
+                "ai_suggested": True,
+                "created_at": datetime.now(timezone.utc),
+            }
+            ins = await db.paths.insert_one(path_doc)
+            path_doc["_id"] = ins.inserted_id
+
+            # create 2 tasks per path
+            task_defs = [
+                {"task_description": "Reach the featured viewpoint", "reward_points": 20},
+                {"task_description": "Take a photo of landmark", "reward_points": 25},
+            ]
+            for td in task_defs:
+                await db.tasks.insert_one({
+                    "path_id": str(ins.inserted_id),
+                    "task_description": td["task_description"],
+                    "reward_points": td["reward_points"],
+                    "status": "Not Started",
+                    "created_at": datetime.now(timezone.utc),
+                })
+
+            paths.append(serialize_doc(path_doc))
+
+        return PathSuggestResponse(paths=paths, explanation=explanation)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error suggesting paths: {str(e)}")
+
 # NEW: Tasks APIs
 @app.post("/api/tasks")
 async def create_task(task: TaskModel):
     if not ObjectId.is_valid(task.path_id):
         raise HTTPException(status_code=400, detail="Invalid path ID format")
-    # Ensure path exists
     path = await db.paths.find_one({"_id": ObjectId(task.path_id)})
     if not path:
         raise HTTPException(status_code=404, detail="Path not found")
@@ -741,7 +820,6 @@ async def seed_samples():
             {"trigger_event": "route_completed", "message_text": "🏁 Route complete! On to the next adventure."},
             {"trigger_event": "daily_login", "message_text": "Welcome back, explorer!"},
         ])
-    # Sample Paths & Tasks
     if await db.paths.count_documents({}) == 0:
         scenic_trail = {
             "name": "Scenic Mountain Trail",
