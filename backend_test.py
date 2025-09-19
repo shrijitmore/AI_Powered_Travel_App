@@ -1092,6 +1092,21 @@ class TravelAppTester:
             await self.test_route_waypoints_api()
             await self.test_map_api_error_handling()
             
+            print("\n" + "=" * 60)
+            print("🎮 TESTING NEW GAMIFICATION ENDPOINTS")
+            print("=" * 60)
+            
+            # NEW GAMIFICATION TESTS (as requested in review)
+            await self.test_seed_data()
+            await self.test_achievements_list()
+            await self.test_achievements_status()
+            await self.test_achievements_check()
+            await self.test_rewards_items()
+            await self.test_rewards_claim_success()
+            await self.test_rewards_claim_insufficient_points()
+            await self.test_motivation_messages()
+            await self.test_full_flow_with_achievements_and_motivation()
+            
         finally:
             await self.cleanup_session()
 
