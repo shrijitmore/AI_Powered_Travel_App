@@ -44,7 +44,7 @@ interface RouteOption {
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [currentView, setCurrentView] = useState<'home' | 'route' | 'profile' | 'leaderboard'>('home');
+  const [currentView, setCurrentView] = useState<'home' | 'route' | 'map' | 'profile' | 'leaderboard'>('home');
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
 
   const API_BASE = Constants.expoConfig?.extra?.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:8001';
