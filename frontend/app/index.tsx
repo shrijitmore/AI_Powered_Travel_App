@@ -15,8 +15,9 @@ import Constants from 'expo-constants';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
-import MapScreen from './map';
+import PokemonGoMap from '../components/PokemonGoMap';
 import { useRouter } from 'expo-router';
+import { useAuth } from '../contexts/AuthContext';
 
 // Types
 interface User {
