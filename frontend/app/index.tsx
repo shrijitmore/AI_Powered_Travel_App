@@ -420,6 +420,7 @@ export default function App() {
 
       {/* Content */}
       {currentView === 'home' && renderHomeView()}
+      {currentView === 'map' && <MapScreen />}
       {currentView === 'profile' && renderProfileView()}
       {(currentView === 'route' || currentView === 'leaderboard') && (
         <View style={styles.content}>
