@@ -283,8 +283,8 @@ export default function App() {
         <Text style={styles.sectionTitle}>App Features</Text>
         
         <View style={styles.featureItem}>
-          <Ionicons name="compass" size={20} color="#007AFF" />
-          <Text style={styles.featureText}>AI-powered route planning with scenic alternatives</Text>
+          <Ionicons name="map" size={20} color="#007AFF" />
+          <Text style={styles.featureText}>Interactive map with real-time navigation and POIs</Text>
         </View>
         
         <View style={styles.featureItem}>
