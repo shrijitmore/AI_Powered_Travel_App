@@ -32,45 +32,36 @@ interface User {
 
 // Main App Component
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, appUser, loading: authLoading, logout, refreshAppUser } = useAuth();
   const [currentView, setCurrentView] = useState<'home' | 'route' | 'map' | 'profile' | 'leaderboard'>('home');
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const API_BASE = Constants.expoConfig?.extra?.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:8001';
   const router = useRouter();
 
-  useEffect(() => { initializeApp(); }, []);
-
-  const initializeApp = async () => {
-    try {
-      const savedUser = await AsyncStorage.getItem('travelUser');
-      if (savedUser) setCurrentUser(JSON.parse(savedUser)); else await createNewUser();
-      await requestLocationPermission();
-    } catch (error) {
-      console.error('Error initializing app:', error);
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (user && appUser) {
+      requestLocationPermission();
     }
-  };
+  }, [user, appUser]);
 
-  const createNewUser = async () => {
-    try {
-      const newUser: User = { name: 'Travel Explorer', email: 'explorer@travel.com', total_points: 0, level: 1, badges: [], routes_completed: 0 };
-      const response = await fetch(`${API_BASE}/api/users`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newUser) });
-      if (response.ok) {
-        const createdUser = await response.json();
-        setCurrentUser(createdUser);
-        await AsyncStorage.setItem('travelUser', JSON.stringify(createdUser));
-      }
-    } catch (error) { console.error('Error creating user:', error); }
-  };
+  // Redirect to auth if not authenticated
+  if (!user) {
+    router.replace('/auth');
+    return null;
+  }
 
   const requestLocationPermission = async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === 'granted') { const currentLocation = await Location.getCurrentPositionAsync({}); setLocation(currentLocation); }
-    } catch (error) { console.error('Error getting location:', error); }
+      if (status === 'granted') {
+        const currentLocation = await Location.getCurrentPositionAsync({});
+        setLocation(currentLocation);
+      }
+    } catch (error) {
+      console.error('Error getting location:', error);
+    }
   };
 
   const planRoute = async () => {
