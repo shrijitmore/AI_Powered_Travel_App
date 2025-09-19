@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
@@ -33,7 +33,8 @@ EMERGENT_LLM_KEY = os.getenv("EMERGENT_LLM_KEY")
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
 
-# Helper function to convert ObjectId to string
+# Helper: ObjectId serializer
+
 def serialize_doc(doc):
     if doc is None:
         return None
@@ -97,8 +98,8 @@ class User(BaseModel):
     level: int = 1
     badges: List[str] = []
     routes_completed: int = 0
-    achievements: List[str] = []  # achievement titles unlocked
-    rewards_owned: List[str] = []  # reward item ids
+    achievements: List[str] = []
+    rewards_owned: List[str] = []
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class AIRouteResponse(BaseModel):
@@ -111,7 +112,7 @@ class Achievement(BaseModel):
     condition_type: str  # 'points' | 'routes_completed'
     condition_value: int
     reward_points: int = 0
-    badge_icon: Optional[str] = None  # base64 icon (optional)
+    badge_icon: Optional[str] = None  # base64
 
 class RewardItem(BaseModel):
     id: Optional[str] = None
@@ -124,12 +125,35 @@ class MotivationMessage(BaseModel):
     trigger_event: str  # 'task_completed' | 'route_completed' | 'daily_login'
     message_text: str
 
+# NEW: Paths and Tasks
+class PathModel(BaseModel):
+    id: Optional[str] = None
+    name: str
+    start_point: Location
+    end_point: Location
+    difficulty: str = "Easy"  # Easy | Medium | Hard
+    ai_suggested: bool = False
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class TaskModel(BaseModel):
+    id: Optional[str] = None
+    path_id: str
+    task_description: str
+    reward_points: int = 10
+    status: str = "Not Started"  # Not Started | In Progress | Completed
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    completed_at: Optional[datetime] = None
+
 # Initialize AI Chat
+
 def get_ai_chat():
     return LlmChat(
         api_key=EMERGENT_LLM_KEY,
         session_id=str(uuid.uuid4()),
-        system_message="You are a helpful travel assistant specialized in route planning and travel recommendations. Provide practical advice about routes, points of interest, and travel optimization."
+        system_message=(
+            "You are a helpful travel assistant specialized in route planning and travel recommendations. "
+            "Provide practical advice about routes, points of interest, and travel optimization."
+        ),
     ).with_model("gemini", "gemini-2.5-pro")
 
 # Utility: Achievement checking
@@ -154,34 +178,30 @@ async def check_and_award_achievements(user_id: str) -> Dict[str, Any]:
 
         meets = False
         if condition_type == "points":
-            meets = (user.get("total_points", 0) >= condition_value)
+            meets = user.get("total_points", 0) >= condition_value
         elif condition_type == "routes_completed":
-            meets = (user.get("routes_completed", 0) >= condition_value)
+            meets = user.get("routes_completed", 0) >= condition_value
 
         if meets:
-            # award
             unlocked.append(title)
             awarded_points += int(ach.get("reward_points", 0))
 
     if unlocked:
         update = {
-            "$inc": {"total_points": awarded_points} if awarded_points else {},
             "$addToSet": {"badges": {"$each": unlocked}, "achievements": {"$each": unlocked}},
         }
-        # Clean empty $inc if 0
-        if not awarded_points:
-            update.pop("$inc")
+        if awarded_points:
+            update["$inc"] = {"total_points": awarded_points}
         await db.users.update_one({"_id": ObjectId(user_id)}, update)
 
     return {"unlocked": unlocked, "awarded_points": awarded_points}
 
 # API Routes
-
 @app.get("/api/health")
 async def health_check():
     return {"status": "healthy", "service": "gamified_travel_backend"}
 
-# User Management
+# Users
 @app.post("/api/users")
 async def create_user(user: User):
     user_dict = user.model_dump(exclude={"id"})
@@ -201,63 +221,52 @@ async def get_user(user_id: str):
     except InvalidId:
         raise HTTPException(status_code=400, detail="Invalid user ID format")
 
-# Route Planning with AI - Enhanced for Map Integration
+# AI Route Planning
 @app.post("/api/routes/plan")
 async def plan_route(route_request: RouteRequest):
     try:
-        # Create AI chat instance
         chat = get_ai_chat()
-        
-        # Prepare message for AI
         prompt = f"""
-        Plan a travel route from {route_request.start.name} (lat: {route_request.start.latitude}, lon: {route_request.start.longitude}) 
+        Plan a travel route from {route_request.start.name} (lat: {route_request.start.latitude}, lon: {route_request.start.longitude})
         to {route_request.end.name} (lat: {route_request.end.latitude}, lon: {route_request.end.longitude}).
-        
+
         User preferences: {route_request.preferences}
-        
+
         Please provide:
         1. Three route options: fastest, scenic, and cheapest
         2. Estimated distance and duration for each
         3. Key points of interest along each route
         4. Trade-offs explanation
         5. Recommend 2-3 challenges/tasks for travelers (like trying local food, taking photos at landmarks, etc.)
-        
+
         Format your response as practical travel advice with specific recommendations.
         """
-        
         message = UserMessage(text=prompt)
         ai_response = await chat.send_message(message)
-        
-        # Generate enhanced route data with waypoints for map visualization
+
         start_lat, start_lon = route_request.start.latitude, route_request.start.longitude
         end_lat, end_lon = route_request.end.latitude, route_request.end.longitude
-        
-        # Calculate intermediate waypoints for different route types
+
         def generate_waypoints(route_type: str, num_points: int = 3):
             waypoints = []
             for i in range(1, num_points + 1):
                 progress = i / (num_points + 1)
-                
                 if route_type == "scenic":
-                    # Add some curve for scenic route
                     lat_offset = (end_lat - start_lat) * progress + 0.01 * (i % 2 - 0.5)
                     lon_offset = (end_lon - start_lon) * progress + 0.01 * (i % 2 - 0.5)
                 elif route_type == "fastest":
-                    # Direct route
                     lat_offset = (end_lat - start_lat) * progress
                     lon_offset = (end_lon - start_lon) * progress
-                else:  # cheapest
-                    # Slightly different path
+                else:
                     lat_offset = (end_lat - start_lat) * progress + 0.005 * (1 - progress)
                     lon_offset = (end_lon - start_lon) * progress - 0.005 * progress
-                
                 waypoints.append({
                     "latitude": start_lat + lat_offset,
                     "longitude": start_lon + lon_offset,
                     "name": f"Waypoint {i}"
                 })
             return waypoints
-        
+
         routes = [
             {
                 "type": "fastest",
@@ -334,12 +343,8 @@ async def plan_route(route_request: RouteRequest):
                 ]
             }
         ]
-        
-        return AIRouteResponse(
-            routes=routes,
-            explanation=ai_response
-        )
-        
+
+        return AIRouteResponse(routes=routes, explanation=ai_response)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error planning route: {str(e)}")
 
@@ -361,47 +366,35 @@ async def get_user_routes(user_id: str):
     except InvalidId:
         raise HTTPException(status_code=400, detail="Invalid user ID format")
 
-# Complete a route and award points
+# Complete route
 @app.patch("/api/routes/{route_id}/complete")
 async def complete_route(route_id: str, user_id: str):
     try:
         if not ObjectId.is_valid(route_id):
             raise HTTPException(status_code=400, detail="Invalid route ID format")
-        
-        # Update route as completed
+
         route_result = await db.routes.update_one(
             {"_id": ObjectId(route_id)},
             {"$set": {"completed": True, "points_earned": 50}}
         )
-        
         if route_result.matched_count == 0:
             raise HTTPException(status_code=404, detail="Route not found")
-        
-        # Award points to user
+
         if ObjectId.is_valid(user_id):
             await db.users.update_one(
                 {"_id": ObjectId(user_id)},
-                {
-                    "$inc": {"total_points": 50, "routes_completed": 1},
-                    "$addToSet": {"badges": "Route Completer"}
-                }
+                {"$inc": {"total_points": 50, "routes_completed": 1}, "$addToSet": {"badges": "Route Completer"}}
             )
-
-            # Achievement check and motivation message
             ach_result = await check_and_award_achievements(user_id)
-
-            # Motivation message
             msg_doc = await db.motivation_messages.find_one({"trigger_event": "route_completed"})
             motivation = msg_doc.get("message_text") if msg_doc else "Great job! Keep going!"
-            
             return {"message": "Route completed successfully", "points_awarded": 50, "achievement": ach_result, "motivation": motivation}
-        
+
         return {"message": "Route completed successfully", "points_awarded": 50}
-        
     except InvalidId:
         raise HTTPException(status_code=400, detail="Invalid route ID format")
 
-# Challenge Management
+# Challenges
 @app.post("/api/challenges")
 async def create_challenge(challenge: Challenge):
     challenge_dict = challenge.model_dump(exclude={"id"})
@@ -419,85 +412,68 @@ async def get_route_challenges(route_id: str):
     except InvalidId:
         raise HTTPException(status_code=400, detail="Invalid route ID format")
 
-# Complete a challenge
 @app.patch("/api/challenges/{challenge_id}/complete")
 async def complete_challenge(challenge_id: str, user_id: str):
     try:
         if not ObjectId.is_valid(challenge_id):
             raise HTTPException(status_code=400, detail="Invalid challenge ID format")
-        
         challenge = await db.challenges.find_one({"_id": ObjectId(challenge_id)})
         if not challenge:
             raise HTTPException(status_code=404, detail="Challenge not found")
-        
-        # Update challenge as completed
+
         await db.challenges.update_one(
             {"_id": ObjectId(challenge_id)},
             {"$set": {"completed": True, "completed_at": datetime.now(timezone.utc)}}
         )
-        
-        # Award points to user
+
         if ObjectId.is_valid(user_id):
             points = challenge.get("points", 10)
             await db.users.update_one(
                 {"_id": ObjectId(user_id)},
                 {"$inc": {"total_points": points}}
             )
-
             ach_result = await check_and_award_achievements(user_id)
             msg_doc = await db.motivation_messages.find_one({"trigger_event": "task_completed"})
             motivation = msg_doc.get("message_text") if msg_doc else "🔥 You’re unstoppable! Keep going!"
-            
             return {"message": "Challenge completed successfully", "points_awarded": points, "achievement": ach_result, "motivation": motivation}
-        
+
         return {"message": "Challenge completed successfully", "points_awarded": challenge.get("points", 10)}
-        
     except InvalidId:
         raise HTTPException(status_code=400, detail="Invalid challenge ID format")
 
-# AI Travel Assistant Chat
+# AI Chat
 @app.post("/api/chat")
 async def chat_with_ai(message: str, user_context: str = ""):
     try:
         chat = get_ai_chat()
-        
         prompt = f"""
         User context: {user_context}
         User question: {message}
-        
+
         Provide helpful travel advice, route recommendations, or answer travel-related questions.
         Keep responses practical and engaging for a travel app user.
         """
-        
         user_message = UserMessage(text=prompt)
         response = await chat.send_message(user_message)
-        
         return {"response": response}
-        
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error in chat: {str(e)}")
 
-# Get user leaderboard
+# Leaderboard
 @app.get("/api/leaderboard")
 async def get_leaderboard(limit: int = 10):
     users = await db.users.find().sort("total_points", -1).limit(limit).to_list(limit)
     return serialize_doc(users)
 
-# Map-specific APIs for interactive features
-
+# Map helpers
 @app.get("/api/map/points-of-interest")
 async def get_points_of_interest(lat: float, lon: float, radius: float = 0.1):
-    """Get points of interest around a location for map display"""
     try:
-        # Generate sample POIs around the location
         pois = []
         poi_types = ["restaurant", "landmark", "viewpoint", "gas_station", "hotel"]
-        
         for i, poi_type in enumerate(poi_types):
-            # Create POIs around the location
             lat_offset = (i - 2) * 0.02
             lon_offset = ((i % 2) - 0.5) * 0.02
-            
             poi = {
                 "id": f"poi_{i}",
                 "type": poi_type,
@@ -512,24 +488,18 @@ async def get_points_of_interest(lat: float, lon: float, radius: float = 0.1):
                 "challenge_available": i % 2 == 0
             }
             pois.append(poi)
-        
         return {"points_of_interest": pois}
-        
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching POIs: {str(e)}")
 
 @app.get("/api/map/challenges/nearby")
 async def get_nearby_challenges(lat: float, lon: float, radius: float = 0.1):
-    """Get challenges near a location for map display"""
     try:
-        # Find challenges near the location (simplified)
         challenges = []
         challenge_types = ["photo", "food", "location", "hidden_gem"]
-        
         for i, challenge_type in enumerate(challenge_types):
             lat_offset = (i - 1.5) * 0.015
             lon_offset = ((i % 2) - 0.5) * 0.015
-            
             challenge = {
                 "id": f"map_challenge_{i}",
                 "type": challenge_type,
@@ -545,32 +515,25 @@ async def get_nearby_challenges(lat: float, lon: float, radius: float = 0.1):
                 "completed": False
             }
             challenges.append(challenge)
-        
         return {"challenges": challenges}
-        
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching challenges: {str(e)}")
 
 @app.get("/api/routes/{route_id}/waypoints")
 async def get_route_waypoints(route_id: str):
-    """Get detailed waypoints for a route for map visualization"""
     try:
         if not ObjectId.is_valid(route_id):
             raise HTTPException(status_code=400, detail="Invalid route ID format")
-        
         route = await db.routes.find_one({"_id": ObjectId(route_id)})
         if not route:
             raise HTTPException(status_code=404, detail="Route not found")
-        
-        # Return the route with waypoints for map display
         return serialize_doc(route)
-        
     except InvalidId:
         raise HTTPException(status_code=400, detail="Invalid route ID format")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching route waypoints: {str(e)}")
 
-# Achievements APIs
+# Achievements
 @app.get("/api/achievements")
 async def list_achievements():
     items = await db.achievements.find().to_list(100)
@@ -605,7 +568,7 @@ async def achievements_check(user_id: str):
     result = await check_and_award_achievements(user_id)
     return result
 
-# Rewards Store APIs
+# Rewards
 @app.get("/api/rewards/items")
 async def list_reward_items():
     items = await db.rewards.find().to_list(200)
@@ -651,7 +614,6 @@ async def claim_reward(payload: ClaimRequest):
     if user.get("total_points", 0) < cost:
         raise HTTPException(status_code=400, detail="Insufficient points")
 
-    # Deduct points and add to inventory
     await db.users.update_one(
         {"_id": ObjectId(user_id)},
         {"$inc": {"total_points": -cost}, "$addToSet": {"rewards_owned": str(item.get("_id"))}}
@@ -660,12 +622,11 @@ async def claim_reward(payload: ClaimRequest):
     updated_user = await db.users.find_one({"_id": ObjectId(user_id)})
     return {"message": "Reward claimed", "user": serialize_doc(updated_user), "item": serialize_doc(item)}
 
-# Motivation Messages APIs
+# Motivation
 @app.get("/api/motivation")
 async def get_motivation(trigger: str = "task_completed"):
     msgs = await db.motivation_messages.find({"trigger_event": trigger}).to_list(100)
     if not msgs:
-        # defaults
         defaults = {
             "task_completed": ["🔥 You’re unstoppable! Keep going!", "Nice! Another one down."],
             "route_completed": ["Great job finishing the route!", "🏁 Route complete! On to the next adventure."],
@@ -676,28 +637,135 @@ async def get_motivation(trigger: str = "task_completed"):
     pick = random.choice(msgs)
     return serialize_doc(pick)
 
-# Seeder (Optional): create sample achievements/rewards/motivations
+# NEW: Paths APIs
+@app.post("/api/paths")
+async def create_path(path: PathModel):
+    doc = path.model_dump(exclude={"id"})
+    result = await db.paths.insert_one(doc)
+    doc["_id"] = result.inserted_id
+    return serialize_doc(doc)
+
+@app.get("/api/paths")
+async def list_paths(ai_suggested: Optional[bool] = None, difficulty: Optional[str] = None):
+    query: Dict[str, Any] = {}
+    if ai_suggested is not None:
+        query["ai_suggested"] = ai_suggested
+    if difficulty:
+        query["difficulty"] = difficulty
+    items = await db.paths.find(query).to_list(200)
+    return serialize_doc(items)
+
+@app.get("/api/paths/{path_id}")
+async def get_path(path_id: str):
+    if not ObjectId.is_valid(path_id):
+        raise HTTPException(status_code=400, detail="Invalid path ID format")
+    item = await db.paths.find_one({"_id": ObjectId(path_id)})
+    if not item:
+        raise HTTPException(status_code=404, detail="Path not found")
+    return serialize_doc(item)
+
+# NEW: Tasks APIs
+@app.post("/api/tasks")
+async def create_task(task: TaskModel):
+    if not ObjectId.is_valid(task.path_id):
+        raise HTTPException(status_code=400, detail="Invalid path ID format")
+    # Ensure path exists
+    path = await db.paths.find_one({"_id": ObjectId(task.path_id)})
+    if not path:
+        raise HTTPException(status_code=404, detail="Path not found")
+    doc = task.model_dump(exclude={"id"})
+    result = await db.tasks.insert_one(doc)
+    doc["_id"] = result.inserted_id
+    return serialize_doc(doc)
+
+@app.get("/api/paths/{path_id}/tasks")
+async def list_tasks_for_path(path_id: str):
+    if not ObjectId.is_valid(path_id):
+        raise HTTPException(status_code=400, detail="Invalid path ID format")
+    items = await db.tasks.find({"path_id": path_id}).to_list(500)
+    return serialize_doc(items)
+
+@app.patch("/api/tasks/{task_id}/status")
+async def update_task_status(task_id: str, status: str, user_id: Optional[str] = None):
+    if not ObjectId.is_valid(task_id):
+        raise HTTPException(status_code=400, detail="Invalid task ID format")
+    if status not in ["Not Started", "In Progress", "Completed"]:
+        raise HTTPException(status_code=400, detail="Invalid status value")
+
+    task = await db.tasks.find_one({"_id": ObjectId(task_id)})
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    update: Dict[str, Any] = {"status": status}
+    points_awarded = 0
+    if status == "Completed" and not task.get("completed_at"):
+        update["completed_at"] = datetime.now(timezone.utc)
+        points_awarded = int(task.get("reward_points", 10))
+        if user_id and ObjectId.is_valid(user_id):
+            await db.users.update_one({"_id": ObjectId(user_id)}, {"$inc": {"total_points": points_awarded}})
+
+    await db.tasks.update_one({"_id": ObjectId(task_id)}, {"$set": update})
+
+    achievement = {"unlocked": [], "awarded_points": 0}
+    motivation = None
+    if status == "Completed" and user_id and ObjectId.is_valid(user_id):
+        achievement = await check_and_award_achievements(user_id)
+        msg_doc = await db.motivation_messages.find_one({"trigger_event": "task_completed"})
+        motivation = msg_doc.get("message_text") if msg_doc else "🔥 You’re unstoppable! Keep going!"
+
+    updated_task = await db.tasks.find_one({"_id": ObjectId(task_id)})
+    return {
+        "task": serialize_doc(updated_task),
+        "points_awarded": points_awarded,
+        "achievement": achievement,
+        "motivation": motivation,
+    }
+
+# Seeder
 @app.post("/api/seed")
 async def seed_samples():
-    # Achievements
     if await db.achievements.count_documents({}) == 0:
         await db.achievements.insert_many([
             {"title": "Explorer Badge", "condition_type": "points", "condition_value": 100, "reward_points": 50},
             {"title": "Trailblazer Badge", "condition_type": "routes_completed", "condition_value": 5, "reward_points": 75},
         ])
-    # Rewards
     if await db.rewards.count_documents({}) == 0:
         await db.rewards.insert_many([
             {"item_name": "Golden Compass", "cost": 120, "category": "Badge"},
             {"item_name": "Speed Boost", "cost": 80, "category": "Boost"},
             {"item_name": "Premium Badge", "cost": 150, "category": "Badge"},
         ])
-    # Motivation messages
     if await db.motivation_messages.count_documents({}) == 0:
         await db.motivation_messages.insert_many([
             {"trigger_event": "task_completed", "message_text": "🔥 You’re unstoppable! Keep going!"},
             {"trigger_event": "route_completed", "message_text": "🏁 Route complete! On to the next adventure."},
             {"trigger_event": "daily_login", "message_text": "Welcome back, explorer!"},
+        ])
+    # Sample Paths & Tasks
+    if await db.paths.count_documents({}) == 0:
+        scenic_trail = {
+            "name": "Scenic Mountain Trail",
+            "start_point": {"latitude": 37.773, "longitude": -122.431, "name": "Trailhead"},
+            "end_point": {"latitude": 37.802, "longitude": -122.448, "name": "Summit"},
+            "difficulty": "Medium",
+            "ai_suggested": True,
+            "created_at": datetime.now(timezone.utc),
+        }
+        city_walk = {
+            "name": "City Landmark Walk",
+            "start_point": {"latitude": 37.7749, "longitude": -122.4194, "name": "Downtown"},
+            "end_point": {"latitude": 37.7849, "longitude": -122.4094, "name": "Old Town"},
+            "difficulty": "Easy",
+            "ai_suggested": False,
+            "created_at": datetime.now(timezone.utc),
+        }
+        res = await db.paths.insert_many([scenic_trail, city_walk])
+        p1, p2 = res.inserted_ids
+        await db.tasks.insert_many([
+            {"path_id": str(p1), "task_description": "Reach the Lake Viewpoint", "reward_points": 20, "status": "Not Started", "created_at": datetime.now(timezone.utc)},
+            {"path_id": str(p1), "task_description": "Take a photo of the summit landmark", "reward_points": 30, "status": "Not Started", "created_at": datetime.now(timezone.utc)},
+            {"path_id": str(p2), "task_description": "Try a local delicacy", "reward_points": 15, "status": "Not Started", "created_at": datetime.now(timezone.utc)},
+            {"path_id": str(p2), "task_description": "Find the hidden mural", "reward_points": 25, "status": "Not Started", "created_at": datetime.now(timezone.utc)},
         ])
     return {"message": "Seeded sample data"}
 
