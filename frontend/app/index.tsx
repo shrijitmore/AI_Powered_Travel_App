@@ -114,14 +114,29 @@ export default function App() {
   const renderHomeView = () => (
     <ScrollView style={styles.content}>
       <View style={styles.header}>
-        <Text style={styles.welcomeText}>Welcome, {currentUser?.name}!</Text>
-        <View style={styles.pointsContainer}><Ionicons name="star" size={20} color="#FFD700" /><Text style={styles.pointsText}>{currentUser?.total_points || 0} Points</Text></View>
+        <Text style={styles.welcomeText}>Welcome, {appUser?.name}!</Text>
+        <View style={styles.pointsContainer}>
+          <Ionicons name="star" size={20} color="#FFD700" />
+          <Text style={styles.pointsText}>{appUser?.total_points || 0} Points</Text>
+        </View>
       </View>
 
       <View style={styles.statsContainer}>
-        <View style={styles.statCard}><Ionicons name="location" size={24} color="#007AFF" /><Text style={styles.statNumber}>{currentUser?.routes_completed || 0}</Text><Text style={styles.statLabel}>Routes Completed</Text></View>
-        <View style={styles.statCard}><Ionicons name="trophy" size={24} color="#FF6B6B" /><Text style={styles.statNumber}>Level {currentUser?.level || 1}</Text><Text style={styles.statLabel}>Explorer Level</Text></View>
-        <View style={styles.statCard}><Ionicons name="ribbon" size={24} color="#4ECDC4" /><Text style={styles.statNumber}>{currentUser?.badges?.length || 0}</Text><Text style={styles.statLabel}>Badges Earned</Text></View>
+        <View style={styles.statCard}>
+          <Ionicons name="location" size={24} color="#007AFF" />
+          <Text style={styles.statNumber}>{appUser?.routes_completed || 0}</Text>
+          <Text style={styles.statLabel}>Routes Completed</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Ionicons name="trophy" size={24} color="#FF6B6B" />
+          <Text style={styles.statNumber}>Level {appUser?.level || 1}</Text>
+          <Text style={styles.statLabel}>Explorer Level</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Ionicons name="ribbon" size={24} color="#4ECDC4" />
+          <Text style={styles.statNumber}>{appUser?.badges?.length || 0}</Text>
+          <Text style={styles.statLabel}>Badges Earned</Text>
+        </View>
       </View>
 
       <View style={styles.actionSection}>
@@ -137,12 +152,7 @@ export default function App() {
           <Text style={styles.secondaryButtonText}>Select Destination | Paths</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.secondaryButton} onPress={planRoute}>
-          <Ionicons name="map-outline" size={20} color="#007AFF" style={styles.buttonIcon} />
-          <Text style={styles.secondaryButtonText}>Plan New Route</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.secondaryButton} onPress={completeRoute}>
+        <TouchableOpacity style={styles.secondaryButton} onPress={completeRoute} disabled={loading}>
           <Ionicons name="checkmark-circle" size={20} color="#007AFF" style={styles.buttonIcon} />
           <Text style={styles.secondaryButtonText}>Complete Demo Route</Text>
         </TouchableOpacity>
@@ -165,10 +175,22 @@ export default function App() {
 
       <View style={styles.featuresSection}>
         <Text style={styles.sectionTitle}>App Features</Text>
-        <View style={styles.featureItem}><Ionicons name="map" size={20} color="#007AFF" /><Text style={styles.featureText}>Interactive map with POIs</Text></View>
-        <View style={styles.featureItem}><Ionicons name="game-controller" size={20} color="#FF6B6B" /><Text style={styles.featureText}>Gamified challenges and rewards</Text></View>
-        <View style={styles.featureItem}><Ionicons name="people" size={20} color="#4ECDC4" /><Text style={styles.featureText}>Leaderboards and achievements</Text></View>
-        <View style={styles.featureItem}><Ionicons name="chatbubble" size={20} color="#FFD700" /><Text style={styles.featureText}>AI travel assistant</Text></View>
+        <View style={styles.featureItem}>
+          <Ionicons name="map" size={20} color="#007AFF" />
+          <Text style={styles.featureText}>Interactive Pokemon Go-style map</Text>
+        </View>
+        <View style={styles.featureItem}>
+          <Ionicons name="game-controller" size={20} color="#FF6B6B" />
+          <Text style={styles.featureText}>Gamified challenges and rewards</Text>
+        </View>
+        <View style={styles.featureItem}>
+          <Ionicons name="people" size={20} color="#4ECDC4" />
+          <Text style={styles.featureText}>Leaderboards and achievements</Text>
+        </View>
+        <View style={styles.featureItem}>
+          <Ionicons name="chatbubble" size={20} color="#FFD700" />
+          <Text style={styles.featureText}>AI travel assistant</Text>
+        </View>
       </View>
     </ScrollView>
   );
