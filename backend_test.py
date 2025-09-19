@@ -729,6 +729,17 @@ class TravelAppTester:
             # Verify gamification mechanics
             await self.test_user_points_update()
             
+            print("\n" + "=" * 60)
+            print("🗺️  TESTING NEW MAP INTEGRATION APIs")
+            print("=" * 60)
+            
+            # NEW MAP INTEGRATION TESTS
+            await self.test_enhanced_route_planning_with_waypoints()
+            await self.test_points_of_interest_api()
+            await self.test_nearby_challenges_api()
+            await self.test_route_waypoints_api()
+            await self.test_map_api_error_handling()
+            
         finally:
             await self.cleanup_session()
 
